@@ -20,7 +20,7 @@ services:
       - { key: CORS_ORIGINS, sync: false }          # your Vercel URL, e.g. https://your-app.vercel.app
       - { key: DATABASE_URL, sync: false }          # Neon connection string
       - { key: JOB_RUNNER, value: embedded }
-      - { key: STORAGE_BACKEND, value: s3 }
+      - { key: STORAGE_BACKEND, value: db }         # files in Postgres (no extra service). Switch to s3 + S3_* vars for larger libraries
       - { key: S3_BUCKET, sync: false }
       - { key: S3_ENDPOINT_URL, sync: false }
       - { key: S3_ACCESS_KEY_ID, sync: false }
