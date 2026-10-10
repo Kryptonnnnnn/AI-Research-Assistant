@@ -159,5 +159,7 @@ class GroqProvider:
                 f"Model '{self.model}' is not available on Groq. Currently listed chat models include: {sample}.",
                 code="provider_model_not_found",
             )
-        out = await self.complete([ChatMessage("user", "Reply with the single word: ok")], temperature=0, max_tokens=5)
-        return f"Groq reachable; model '{self.model}' is listed and responded ({len(out)} chars)."
+        out = await self.complete([ChatMessage("user", "Reply with the single word: ok")], temperature=0, max_tokens=256)
+        if not out.strip():
+            return f"Groq reachable; model '{self.model}' is listed but returned no visible text (reasoning model with a small budget?)."
+        return f"Groq reachable; model '{self.model}' is listed and answered."

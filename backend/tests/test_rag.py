@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from sqlalchemy import select
 
 from app.core.errors import ProviderError
@@ -80,6 +81,21 @@ def test_best_excerpt_is_substring_and_relevant():
 
 
 # ---------- citations ----------
+@pytest.mark.parametrize(
+    "raw",
+    ["Claim 【S1】.", "Claim [S1].", "Claim (S1).", "Claim 【S1†L3-L5】.", "Claim [ S1 ].", "Claim （S1）."],
+)
+def test_citation_styles_are_normalised(raw):
+    out, used, invalid = process_answer(raw, {"S1"})
+    assert out == "Claim [S1]." and used == ["S1"] and invalid == []
+
+
+def test_normalised_multi_and_fabricated_labels():
+    out, used, invalid = process_answer("A 【S1, S2】 B 【S9】 C [S2][S1].", {"S1", "S2"})
+    assert out == "A [S1, S2] B C [S2] [S1]." and used == ["S1", "S2"] and invalid == ["S9"]
+    assert process_answer("plain (see S1 and the appendix)", {"S1"})[1] == []  # prose mentions are not citations
+
+
 def test_citation_validation_strips_invalid_labels():
     out, used, invalid = process_answer("Claim A [S1]. Claim B [S2, S9]. Fake [S7].", {"S1", "S2"})
     assert out == "Claim A [S1]. Claim B [S2]. Fake." and used == ["S1", "S2"] and invalid == ["S9", "S7"]
