@@ -21,7 +21,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests migrations && ruff format --check app tests
       - run: mypy app
-      - run: pytest -q                       # SQLite
+      - run: pytest -q                       # SQLite (includes retrieval eval + moto S3 emulator tests)
       - run: pytest -q                       # PostgreSQL + pgvector (also runs the Alembic migrations)
         env: { TEST_DATABASE_URL: "postgresql+asyncpg://ara:ara_ci@localhost:5432/ara_test" }
       - run: pip-audit -r requirements.txt
