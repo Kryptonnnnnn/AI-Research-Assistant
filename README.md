@@ -5,7 +5,7 @@ A full-stack research workspace: upload PDFs, DOCX, TXT and Markdown, organise t
 ## Live demo
 - App: https://ai-research-assistant-beta-flame.vercel.app (Vercel → proxies `/api/*` to the API)
 - API docs: https://ai-research-assistant-api-gwcu.onrender.com/docs · readiness: `/ready`
-- Free tiers: the API sleeps after 15 min idle (first request ≈ 1 min). Embeddings are the lexical `hash` embedder there, and chat needs `LLM_MODEL` (+ `GROQ_API_KEY`) set on the API service.
+- Free tiers: the API sleeps after 15 min idle (first request ≈ 1 min). Production runs **semantic** retrieval (fastembed / all-MiniLM-L6-v2) and Groq `openai/gpt-oss-120b`; `/ready` reports the active provider, retrieval mode, storage backend and any warnings (never secrets).
 
 ## Features
 - **Auth & isolation** — Argon2id, revocable server-side sessions (httpOnly cookie), per-user data isolation enforced in every query and covered by tests, rate limits.
@@ -105,24 +105,27 @@ All settings are documented in [`.env.example`](.env.example). The important one
 ## API
 Interactive docs at `/docs` (OpenAPI at `/openapi.json`). Main groups under `/api/v1`: `auth`, `documents` (+`/jobs`), `collections`, `chat` (+`/chat/stream` SSE), `conversations`, `search`, `research/{summarize,questions,findings,compare}`, `notes`, `dashboard`, `settings`, and `/health` + `/ready` at the root. Errors share one envelope: `{"error": {"code", "message", "details?"}}`.
 
-## Status — what was actually verified
+## Status — what was actually verified (2026-10-10)
 | Check | Result |
 |---|---|
-| Backend tests (`pytest`) | **123 passed** on SQLite and on real PostgreSQL 16 + pgvector (including Alembic migrations, `alembic check`, hybrid search, `SKIP LOCKED` job claiming) |
-| Backend quality | `ruff` clean, `mypy` clean (80 files), `pip-audit`: no known vulnerabilities |
-| Frontend | `eslint`, `tsc --noEmit`, `next build` clean; **46 Vitest** tests pass |
-| End-to-end (Playwright, offline, mock LLM) | **13 passed**: auth, upload→processing→streamed answer→citation→evidence panel→viewer page→reload persistence, cross-user isolation, insufficient-evidence, collections, settings/theme, dashboard, notes, regenerate/follow-ups, mobile nav |
-| Real stack smoke test (manual) | Postgres + pgvector + real `all-MiniLM-L6-v2` + real PDF + local Ollama `llama3.2`: correct page-level citations, off-topic question refused, tokens stream incrementally through the Next proxy |
-| Optional live tests (`-m live`) | MiniLM semantic ranking ✅, Ollama ✅, **Groq not run** (no API key available while building; its request/stream/error handling is tested against a mocked HTTP transport only) |
-| Deployment | **Not deployed.** Config for Render/Vercel/Neon is written from the providers' current docs but unverified in production — follow the checklist in `docs/DEPLOYMENT.md` |
+| Backend tests (`pytest`) | **170 passed** on SQLite; the suite also ran on real PostgreSQL 16 + pgvector (incl. Alembic migrations, `alembic check`, hybrid search, `SKIP LOCKED` claiming) |
+| Backend quality | `ruff` + `mypy` clean; `pip-audit`: no known vulnerabilities. CI (GitHub Actions) backend job: passing on SQLite + PostgreSQL |
+| Frontend | `eslint`, `tsc`, `next build` clean; **88 Vitest** pass; production-dependency `npm audit`: 0 vulnerabilities (dev-tooling advisories are reported non-blocking) |
+| End-to-end (Playwright, offline mock LLM) | **24 passed**, 1 skipped (opt-in screenshot capture) |
+| Retrieval evaluation | 33-query set over 9 documents, see [`docs/RETRIEVAL_EVAL.md`](docs/RETRIEVAL_EVAL.md): real MiniLM separates answerable from off-topic queries (100 % / 0 % at threshold 0.25); the lexical fallback cannot. Small, easy corpus: treat as indicative |
+| Provider errors | missing key/model, 400/401/404/429/5xx, timeouts, malformed and mid-stream-error responses, secret redaction: unit-tested (mocked transport) |
+| **Live production** (Vercel + Render + Neon) | verified in a real browser: register, upload, indexing, **Groq-answered streamed question with citation chip → evidence panel → reload restores the conversation**; second user gets 404 on the first user's conversation; conflict detection across two documents returns cited positions from both |
+| Free-tier fit | local container run with Render-free limits (512 MB / 0.1 CPU): peak 265 MiB, no OOM kill (this is **not** a measurement of Render itself) |
+| S3 storage | adapter exercised against the `moto` S3 *emulator* only; **never tested against a real bucket** |
 
 ## Known limitations
 - **No OCR**: scanned/image-only PDFs fail with an explanatory message.
-- **Embeddings on free hosting**: PyTorch is too heavy to assume on free tiers, so the Render blueprint defaults to the lexical `hash` embedder (works, but not semantic). Real semantic search needs `sentence-transformers` (local / paid instance) — see deployment doc.
-- **Vector store**: pgvector only (SQLite uses NumPy brute force for local dev). Qdrant is not implemented.
-- **Rate limiting** is in-memory per process; no email verification, password reset or MFA.
-- **Render free tier** spins down after 15 min idle (slow first request) and has no background workers, so the job worker is embedded in the API process; uploads must use S3-compatible storage there (the S3 adapter is untested against a live bucket).
-- **Token counting** is an approximation (regex tokenizer), so chunk/context budgets are approximate.
-- **PDF export** is not implemented (Markdown export only). PDF viewing uses the browser's native viewer; headless browsers can't render it, so e2e tests assert the page anchor and inline serving instead.
-- Small local models (e.g. 3B) sometimes omit citations or reason imperfectly; the app flags answers with no valid citations instead of inventing any.
-- Not covered by browser tests: the Stop button (unit-tested + backend-tested), Compare/Findings tabs, tablet/mobile layouts of every page (screenshots reviewed for the main ones).
+- **Off-topic gating is imperfect**: in the live test a general-knowledge question retrieved some low-relevance chunks (the model still answered "Insufficient evidence"); with the lexical `hash` fallback the threshold cannot separate off-topic queries at all.
+- **Model availability changes**: Groq retires models. Use Settings → Test connection / Refresh models. The docs page listed `llama-3.3-70b-versatile`, but the live `/models` list for the key did not, which is why the app validates against the live list.
+- **Render free tier**: sleeps after 15 min idle (≈1 min cold start), CPU is 0.1 so indexing large PDFs is slow, no separate worker (the worker is embedded in the API; jobs are durable in Postgres).
+- **Storage**: uploads live in Neon (`STORAGE_BACKEND=db`, capped by `DB_STORAGE_QUOTA_MB`); use S3-compatible storage for larger libraries.
+- **Vector store**: pgvector only (SQLite uses NumPy for local dev). Qdrant is not implemented.
+- **Auth**: no email verification, password reset or MFA; rate limiting is per process.
+- **PDF export** is not implemented (Markdown export only); headless browsers cannot render the PDF viewer, so e2e tests assert the `#page=N` anchor and inline serving instead.
+- Not covered by browser tests: Stop button (unit-tested), prev/next between citations (unit-tested), Compare/Findings/Conflicts tabs beyond rendering, tablet/mobile layouts beyond reviewed screenshots; no automated accessibility (axe) scan.
+- Small local models (e.g. 3B) sometimes omit citations; the app flags answers with no valid citation instead of inventing one.
