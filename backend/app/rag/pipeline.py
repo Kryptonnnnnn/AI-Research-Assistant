@@ -19,13 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import get_settings
 from app.core.errors import AppError, NotFoundError, ProviderError, ValidationFailed
 from app.db.base import utcnow
+from app.embeddings.factory import retrieval_mode
 from app.llm.base import ChatMessage
 from app.llm.factory import get_llm
 from app.models import Conversation, Document, Message, MessageCitation, QueryLog
 from app.rag import prompts
 from app.rag.citations import process_answer
 from app.rag.retriever import RetrievalResult, RetrievedChunk, retrieve
-from app.rag.scope import resolve_scope
+from app.rag.scope import count_stale_in_scope, resolve_scope
 from app.repositories.ownership import get_conversation
 from app.schemas.chat import MessageOut, SourceOut
 from app.services import settings_service
@@ -275,7 +276,11 @@ async def run_chat(sm: async_sessionmaker[AsyncSession], inp: ChatInput) -> Asyn
             result = await retrieve(db, inp.user_id, retrieval_query(question, history), scope, eff.retrieval)
         chunks = result.chunks
         label_chunks(chunks)
+    async with sm() as db:
+        stale = await count_stale_in_scope(db, scope)
     meta.update(
+        retrieval_mode=retrieval_mode(),
+        stale_documents=stale,
         candidates=result.candidates,
         retrieved=len(chunks),
         top_k=eff.retrieval.top_k,
@@ -325,7 +330,7 @@ async def run_chat(sm: async_sessionmaker[AsyncSession], inp: ChatInput) -> Asyn
             chunks=[],
             used=[],
         )
-        yield {"type": "error", "code": exc.code, "message": exc.message, "message_id": str(mid)}
+        yield {"type": "error", "code": exc.code, "message": exc.message, "status": exc.status_code, "message_id": str(mid)}
         return
 
     messages = prompts.build_chat_messages(mode, history, question, chunks)
@@ -363,7 +368,7 @@ async def run_chat(sm: async_sessionmaker[AsyncSession], inp: ChatInput) -> Asyn
         raise
     except ProviderError as exc:
         mid = await _persist_partial("error", exc.message)
-        yield {"type": "error", "code": exc.code, "message": exc.message, "message_id": str(mid)}
+        yield {"type": "error", "code": exc.code, "message": exc.message, "status": exc.status_code, "message_id": str(mid)}
         return
     except Exception:  # noqa: BLE001
         logger.exception("Unexpected generation failure")
@@ -436,7 +441,7 @@ async def collect_chat(sm, inp: ChatInput) -> tuple[uuid.UUID, MessageOut, Messa
         elif ev["type"] == "done":
             final = ev["message"]
         elif ev["type"] == "error":
-            raise ProviderError(ev["message"], code=ev["code"])
+            raise ProviderError(ev["message"], code=ev["code"], status_code=ev.get("status"))
     assert conv_id and user_id and final
     async with sm() as db:
         um = await load_message_out(db, user_id)

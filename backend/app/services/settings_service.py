@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.llm.factory import available_providers
+from app.embeddings.factory import index_signature, retrieval_mode
+from app.llm.factory import available_providers, llm_status
 from app.models import UserSettings
 from app.rag.retriever import RetrievalParams
 from app.schemas.settings import SettingsOut, SettingsUpdate
@@ -69,12 +70,15 @@ async def to_out(db: AsyncSession, user_id: uuid.UUID) -> SettingsOut:
         hybrid_search=eff.retrieval.hybrid,
         embedding_provider=s.embedding_provider,
         embedding_model=s.embedding_model
-        if s.embedding_provider == "sentence-transformers"
+        if s.embedding_provider in ("sentence-transformers", "fastembed")
         else (s.embedding_ollama_model if s.embedding_provider == "ollama" else "hash-bow-v1"),
         embedding_dim=s.embedding_dim,
         chunk_size_tokens=s.chunk_size_tokens,
         chunk_overlap_tokens=s.chunk_overlap_tokens,
         providers=available_providers(),
+        retrieval_mode=retrieval_mode(),
+        embedding_signature=index_signature(),
+        llm_status=llm_status(eff.llm_provider, eff.llm_model),
         overrides={n: (row is not None and getattr(row, n) is not None) for n in OVERRIDABLE},
     )
 

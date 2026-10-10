@@ -204,9 +204,12 @@ def test_production_config_requires_real_secret():
 
 
 # ---------- provider wire formats (httpx MockTransport, no network) ----------
+_REAL_ASYNC_CLIENT = httpx.AsyncClient
+
+
 def patch_httpx(monkeypatch, handler):
-    real = httpx.AsyncClient
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    """Route all httpx.AsyncClient traffic to `handler` (re-entrant: always wraps the real class)."""
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: _REAL_ASYNC_CLIENT(transport=httpx.MockTransport(handler), **kw))
 
 
 MSGS = [ChatMessage("system", "s"), ChatMessage("user", "hi")]

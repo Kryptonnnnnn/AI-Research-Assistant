@@ -33,6 +33,13 @@ class JobRunner:
                 logger.warning("Recovered %d interrupted job(s)", recovered)
         except Exception:  # noqa: BLE001
             logger.exception("Stale-job recovery failed")
+        if get_settings().auto_reindex:
+            try:
+                n = await queue.enqueue_stale_reindex(sm)
+                if n:
+                    logger.warning("Queued %d document(s) for re-indexing (embedding model/chunking changed)", n)
+            except Exception:  # noqa: BLE001
+                logger.exception("Stale-index scan failed")
         last_recover = asyncio.get_running_loop().time()
         while not self._stop.is_set():
             try:

@@ -107,3 +107,51 @@ async def drain(sm: async_sessionmaker[AsyncSession], max_jobs: int = 1000) -> i
     while n < max_jobs and await run_next(sm):
         n += 1
     return n
+
+
+async def count_stale(sm: async_sessionmaker[AsyncSession], user_id: uuid.UUID | None = None) -> int:
+    """Ready documents whose stored index signature differs from the active embedding model + chunking."""
+    from sqlalchemy import func, or_
+
+    from app.embeddings.factory import index_signature
+
+    sig = index_signature()
+    q = (
+        select(func.count())
+        .select_from(Document)
+        .where(Document.status == "ready", or_(Document.index_signature.is_(None), Document.index_signature != sig))
+    )
+    if user_id is not None:
+        q = q.where(Document.user_id == user_id)
+    async with sm() as db:
+        return (await db.execute(q)).scalar_one()
+
+
+async def enqueue_stale_reindex(sm: async_sessionmaker[AsyncSession]) -> int:
+    """Safe re-indexing after an embedding model / chunking change. Old chunks are only replaced once the new
+    ones are fully computed (atomic swap in the pipeline), and retrieval only ever searches vectors from the active model."""
+    from sqlalchemy import or_
+
+    from app.embeddings.factory import index_signature
+
+    sig = index_signature()
+    n = 0
+    async with sm() as db:
+        docs = (
+            (
+                await db.execute(
+                    select(Document).where(
+                        Document.status == "ready", or_(Document.index_signature.is_(None), Document.index_signature != sig)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for d in docs:
+            await enqueue_ingest(db, d)
+            n += 1
+        await db.commit()
+    if n:
+        notify()
+    return n

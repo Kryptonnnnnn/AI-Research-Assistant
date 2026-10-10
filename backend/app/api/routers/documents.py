@@ -41,7 +41,12 @@ async def upload_documents(
     body = UploadResponse(items=items)
     if any(i.status == "created" for i in items):
         return body
-    code = 409 if all(i.status == "duplicate" for i in items) else 422
+    if all(i.status == "duplicate" for i in items):
+        code = 409
+    elif any(i.error_code == "storage_quota_exceeded" for i in items):
+        code = 507
+    else:
+        code = 422
     return JSONResponse(body.model_dump(mode="json"), status_code=code)
 
 

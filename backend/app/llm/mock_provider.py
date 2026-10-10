@@ -52,6 +52,15 @@ class MockProvider:
                 "## Limitations\n- **Interpretation:** based only on the retrieved excerpts.\n\n"
                 "## Open Questions\n- What further evidence would strengthen these findings?"
             )
+        if "TASK: conflicts" in user:
+            return (
+                "### Conflict: reported figures\n- **Position A** ("
+                + lines[0]
+                + ")\n- **Position B** ("
+                + (lines[1] if len(lines) > 1 else lines[0])
+                + ")\n\n## Agreements\n- "
+                + lines[0]
+            )
         if "MODE: synthesis" in system or "TASK: compare" in user:
             return "## Agreements\n" + lines[0] + "\n\n## Differences\n" + "\n".join(f"- {ln}" for ln in lines[1:] or lines)
         return (

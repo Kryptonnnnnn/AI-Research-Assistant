@@ -103,7 +103,7 @@ async def _gather(db, user_id, docs: list[Document], focus: str | None, budget: 
 async def run_task(sm: async_sessionmaker[AsyncSession], user_id: uuid.UUID, task: str, req: TaskRequest) -> TaskResponse:
     t0 = time.perf_counter()
     s = get_settings()
-    if task == "compare" and len(req.document_ids) < 2:
+    if task in ("compare", "conflicts") and len(req.document_ids) < 2:
         raise ValidationFailed("Select at least two documents to compare.")
     async with sm() as db:
         docs = await _owned_ready_docs(db, user_id, req.document_ids)
@@ -133,6 +133,15 @@ async def run_task(sm: async_sessionmaker[AsyncSession], user_id: uuid.UUID, tas
         instruction = (
             f"Compare these documents: {titles}. Produce Markdown sections: ## Overview, ## Agreements, ## Contradictions, "
             f"## Key Differences (a table if helpful), ## Gaps. Attribute every point to its document with citations.{focus}"
+        )
+    elif task == "conflicts":
+        instruction = (
+            f"Find claims where the documents {titles} CONFLICT or disagree (different numbers, conclusions, methods or recommendations). "
+            "For each conflict write a section '### Conflict: <short topic>' with two bullets, 'Position A' and 'Position B', each naming "
+            "its document by title and citing its own source id. Only report a conflict when BOTH sides are supported by cited text; "
+            "do not infer disagreement from silence. Then add '## Apparent but not real conflicts' for differences explained by scope, "
+            "date or definitions, and '## Agreements'. If there is no conflict, say 'No explicit conflicts found in the retrieved passages.'"
+            f"{focus}"
         )
     else:
         raise ValidationFailed(f"Unknown task '{task}'")

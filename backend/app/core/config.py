@@ -50,16 +50,20 @@ class Settings(BaseSettings):
     s3_secret_access_key: str = ""
     max_upload_mb: int = 25
     max_files_per_upload: int = 10
+    user_storage_quota_mb: int = 200  # per user, all backends
+    db_storage_quota_mb: int = 300  # whole database-backed file store (protects small free DB plans)
 
     # --- Chunking ---
-    chunk_size_tokens: int = 800
-    chunk_overlap_tokens: int = 120
+    chunk_size_tokens: int = 200  # see docs/RETRIEVAL_EVAL.md: MiniLM-class models read ~256 tokens; long chunks dilute scores
+    chunk_overlap_tokens: int = 40
 
     # --- Embeddings ---
-    embedding_provider: Literal["sentence-transformers", "ollama", "hash"] = "sentence-transformers"
+    embedding_provider: Literal["sentence-transformers", "fastembed", "ollama", "hash"] = "sentence-transformers"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_batch_size: int = 32
     embedding_ollama_model: str = ""
+    embedding_cache_dir: str = ""  # fastembed model cache (bake the model into the image here)
+    auto_reindex: bool = True  # re-queue documents indexed with a different embedding model/chunking on startup
 
     # --- LLM ---
     llm_provider: Literal["groq", "ollama", "mock"] = "mock"

@@ -21,6 +21,9 @@ class SettingsOut(BaseModel):
     chunk_overlap_tokens: int
     providers: list[dict]
     overrides: dict[str, bool]
+    retrieval_mode: str
+    embedding_signature: str
+    llm_status: dict
 
 
 class SettingsUpdate(BaseModel):
@@ -32,6 +35,12 @@ class SettingsUpdate(BaseModel):
     context_token_budget: int | None = Field(default=None, ge=500, le=32000)
     hybrid_search: bool | None = None
     reset: list[str] = Field(default_factory=list)  # field names to reset to server default
+
+
+class ModelListOut(BaseModel):
+    provider: str
+    models: list[str]
+    error: str | None = None
 
 
 class ProviderTestIn(BaseModel):

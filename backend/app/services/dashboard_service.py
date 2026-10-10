@@ -3,10 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Collection, Conversation, Document, Message, QueryLog, ResearchNote
+from app.embeddings.factory import index_signature
+from app.models import Collection, Conversation, Document, Message, ProcessingJob, QueryLog, ResearchNote
 
 
 async def metrics(db: AsyncSession, user_id: uuid.UUID) -> dict:
@@ -70,7 +71,60 @@ async def metrics(db: AsyncSession, user_id: uuid.UUID) -> dict:
         )
     recent.sort(key=lambda r: r["at"], reverse=True)
 
+    recent_docs = (
+        (await db.execute(select(Document).where(Document.user_id == user_id).order_by(Document.created_at.desc()).limit(6)))
+        .scalars()
+        .all()
+    )
+    jobs = (
+        await db.execute(
+            select(ProcessingJob, Document.title)
+            .join(Document, Document.id == ProcessingJob.document_id)
+            .where(ProcessingJob.user_id == user_id, ProcessingJob.status.in_(("queued", "running")))
+            .order_by(ProcessingJob.created_at.desc())
+            .limit(10)
+        )
+    ).all()
+    stale = (
+        await db.execute(
+            select(func.count())
+            .select_from(Document)
+            .where(
+                Document.user_id == user_id,
+                Document.status == "ready",
+                or_(Document.index_signature.is_(None), Document.index_signature != index_signature()),
+            )
+        )
+    ).scalar_one()
     return {
+        "recent_documents": [
+            {
+                "id": str(d.id),
+                "title": d.title,
+                "status": d.status,
+                "progress": d.progress,
+                "stage": d.stage,
+                "file_ext": d.file_ext,
+                "size_bytes": d.size_bytes,
+                "page_count": d.page_count,
+                "created_at": d.created_at.isoformat(),
+            }
+            for d in recent_docs
+        ],
+        "active_jobs": [
+            {
+                "id": str(j.id),
+                "document_id": str(j.document_id),
+                "document_title": t,
+                "status": j.status,
+                "stage": j.stage,
+                "progress": j.progress,
+                "attempts": j.attempts,
+                "max_attempts": j.max_attempts,
+            }
+            for j, t in jobs
+        ],
+        "index_health": {"current_signature": index_signature(), "stale_documents": stale},
         "documents": {
             "total": sum(by_status.values()),
             "ready": by_status.get("ready", 0),

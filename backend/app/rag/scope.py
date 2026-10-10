@@ -38,3 +38,20 @@ async def resolve_scope(
     else:
         q = select(Document.id).where(Document.user_id == user_id, Document.status == DOC_READY)
     return list((await db.execute(q)).scalars().all())
+
+
+async def count_stale_in_scope(db: AsyncSession, doc_ids: list[uuid.UUID]) -> int:
+    """How many in-scope documents were indexed with a different embedding model/chunking (unsearchable until re-indexed)."""
+    if not doc_ids:
+        return 0
+    from sqlalchemy import func, or_
+
+    from app.embeddings.factory import index_signature
+
+    sig = index_signature()
+    q = (
+        select(func.count())
+        .select_from(Document)
+        .where(Document.id.in_(doc_ids), or_(Document.index_signature.is_(None), Document.index_signature != sig))
+    )
+    return (await db.execute(q)).scalar_one()

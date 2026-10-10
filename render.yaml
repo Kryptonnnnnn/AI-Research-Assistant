@@ -2,8 +2,9 @@
 #  - free web services spin down after 15 min idle (~1 min cold start), have an EPHEMERAL disk, and 750 instance-hours/month
 #  - background workers are NOT available on the free plan -> JOB_RUNNER=embedded runs the worker inside the API process
 #  - free Postgres expires after 30 days -> use Neon (pgvector, free) for the database instead
-# RAM for the free plan is not stated in the docs; PyTorch/sentence-transformers is likely too heavy for it, so this blueprint
-# ships the lightweight image with the lexical `hash` embedder. For real semantic search use a paid instance with WITH_ML=1.
+# Free-plan RAM is 512 MB / 0.1 CPU (render.com/docs/compute-plans). The image ships fastembed (ONNX) with the MiniLM model baked in:
+# measured ~290 MB steady state for the model + ~150 MB for the API, so it is TIGHT; see docs/RETRIEVAL_EVAL.md for measurements and
+# docs/DEPLOYMENT.md for what to do if the instance is OOM-killed (fall back to EMBEDDING_PROVIDER=hash, clearly labelled lexical).
 services:
   - type: web
     name: ai-research-assistant-api
@@ -25,9 +26,10 @@ services:
       - { key: S3_ENDPOINT_URL, sync: false }
       - { key: S3_ACCESS_KEY_ID, sync: false }
       - { key: S3_SECRET_ACCESS_KEY, sync: false }
-      - { key: EMBEDDING_PROVIDER, value: hash }    # see note above
-      - { key: RETRIEVAL_SCORE_THRESHOLD, value: "0.1" }
+      - { key: EMBEDDING_PROVIDER, value: fastembed }  # real MiniLM vectors via ONNX; model is baked into the image
+      - { key: EMBEDDING_BATCH_SIZE, value: "4" }      # small batches keep peak RAM down on 512 MB
+      - { key: MAX_UPLOAD_MB, value: "10" }
       - { key: LLM_PROVIDER, value: groq }
-      - { key: LLM_MODEL, sync: false }             # a current model id from the Groq console
+      - { key: LLM_MODEL, value: llama-3.3-70b-versatile }  # listed as a production model at console.groq.com/docs/models (checked 2026-10-10). Validate with Settings -> Test connection; change if Groq retires it
       - { key: GROQ_API_KEY, sync: false }
       - { key: ALLOW_MOCK_PROVIDER, value: "false" }

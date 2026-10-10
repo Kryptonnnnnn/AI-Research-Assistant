@@ -97,6 +97,8 @@ class SearchResponse(BaseModel):
     results: list[SourceOut]
     candidates: int
     latency_ms: float
+    retrieval_mode: str = "semantic"
+    stale_documents: int = 0
 
 
 class TaskRequest(BaseModel):

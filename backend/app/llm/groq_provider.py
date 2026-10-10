@@ -10,15 +10,44 @@ import httpx
 from app.core.errors import ProviderError
 from app.llm.base import ChatMessage
 
+NON_CHAT_MARKERS = ("whisper", "tts", "guard", "embed", "orpheus", "playai")
 
-def _explain(status: int, body: str) -> str:
+
+def redact(text: str, *secrets: str) -> str:
+    for s in secrets:
+        if s:
+            text = text.replace(s, "[redacted]")
+    return text
+
+
+def _upstream_message(resp: httpx.Response, api_key: str) -> str:
+    """The provider's own error text (e.g. 'model has been decommissioned'), truncated and secret-redacted."""
+    try:
+        msg = resp.json()["error"]["message"]
+    except (ValueError, KeyError, TypeError):
+        return ""
+    return redact(str(msg), api_key)[:240]
+
+
+def explain_http_error(resp: httpx.Response, api_key: str) -> ProviderError:
+    status = resp.status_code
     if status in (401, 403):
-        return "Groq rejected the API key (check GROQ_API_KEY)."
+        return ProviderError("Groq rejected the API key (check GROQ_API_KEY).", code="provider_auth_error")
     if status == 404:
-        return "Groq does not recognise this model id (check LLM_MODEL against the current model list)."
+        return ProviderError(
+            "Groq does not recognise this model id (check LLM_MODEL against Settings → AI provider → Refresh models).",
+            code="provider_model_not_found",
+        )
     if status == 429:
-        return "Groq rate limit reached. Wait a moment and retry."
-    return f"Groq returned HTTP {status}."
+        wait = resp.headers.get("retry-after")
+        hint = f" Retry in about {wait} s." if wait and wait.replace(".", "", 1).isdigit() else " Wait a moment and retry."
+        return ProviderError("Groq rate limit reached." + hint, code="provider_rate_limited", status_code=429)
+    if status >= 500:
+        return ProviderError(f"Groq had a server error (HTTP {status}). Try again shortly.", code="provider_http_error")
+    detail = _upstream_message(resp, api_key)
+    return ProviderError(
+        f"Groq rejected the request (HTTP {status}){': ' + detail if detail else ''}.", code="provider_http_error"
+    )
 
 
 class GroqProvider:
@@ -57,11 +86,15 @@ class GroqProvider:
         except httpx.HTTPError as exc:
             raise ProviderError("Could not reach Groq.", code="provider_unreachable") from exc
         if r.status_code >= 400:
-            raise ProviderError(_explain(r.status_code, r.text), code="provider_http_error")
+            raise explain_http_error(r, self.api_key)
         try:
-            return r.json()["choices"][0]["message"]["content"] or ""
-        except (KeyError, IndexError, ValueError) as exc:
-            raise ProviderError("Unexpected response format from Groq.") from exc
+            data = r.json()
+            content = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ProviderError("Groq returned a response in an unexpected format.", code="provider_bad_response") from exc
+        if not isinstance(content, str):
+            raise ProviderError("Groq returned a response in an unexpected format.", code="provider_bad_response")
+        return content
 
     async def stream(self, messages, *, temperature, max_tokens) -> AsyncIterator[str]:
         try:
@@ -74,7 +107,7 @@ class GroqProvider:
                 ) as r:
                     if r.status_code >= 400:
                         await r.aread()
-                        raise ProviderError(_explain(r.status_code, ""), code="provider_http_error")
+                        raise explain_http_error(r, self.api_key)
                     async for line in r.aiter_lines():
                         if not line.startswith("data:"):
                             continue
@@ -82,8 +115,14 @@ class GroqProvider:
                         if data == "[DONE]":
                             return
                         try:
-                            delta = json.loads(data)["choices"][0]["delta"].get("content")
-                        except (KeyError, IndexError, ValueError):
+                            obj = json.loads(data)
+                        except ValueError:
+                            continue  # tolerate keep-alive / partial junk lines
+                        if isinstance(obj, dict) and obj.get("error"):
+                            raise ProviderError("Groq reported an error while generating.", code="provider_http_error")
+                        try:
+                            delta = obj["choices"][0]["delta"].get("content")
+                        except (KeyError, IndexError, TypeError, AttributeError):
                             continue
                         if delta:
                             yield delta
@@ -92,6 +131,29 @@ class GroqProvider:
         except httpx.HTTPError as exc:
             raise ProviderError("Could not reach Groq.", code="provider_unreachable") from exc
 
+    async def list_models(self) -> list[str]:
+        try:
+            async with httpx.AsyncClient(timeout=min(self.timeout, 20)) as client:
+                r = await client.get(f"{self.base_url}/models", headers=self._headers)
+        except httpx.TimeoutException as exc:
+            raise ProviderError("The Groq request timed out.", code="provider_timeout") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError("Could not reach Groq.", code="provider_unreachable") from exc
+        if r.status_code >= 400:
+            raise explain_http_error(r, self.api_key)
+        try:
+            ids = [m["id"] for m in r.json()["data"] if isinstance(m.get("id"), str)]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderError("Groq returned a model list in an unexpected format.", code="provider_bad_response") from exc
+        return sorted(i for i in ids if not any(mark in i.lower() for mark in NON_CHAT_MARKERS))
+
     async def check(self) -> str:
+        models = await self.list_models()  # proves the key works
+        if self.model not in models:
+            sample = ", ".join(models[:6]) or "none"
+            raise ProviderError(
+                f"Model '{self.model}' is not available on Groq. Currently listed chat models include: {sample}.",
+                code="provider_model_not_found",
+            )
         out = await self.complete([ChatMessage("user", "Reply with the single word: ok")], temperature=0, max_tokens=5)
-        return f"Groq reachable; model '{self.model}' responded ({len(out)} chars)."
+        return f"Groq reachable; model '{self.model}' is listed and responded ({len(out)} chars)."

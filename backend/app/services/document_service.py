@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.core.errors import AppError, ConflictError, StorageUnavailable
 from app.ingestion.validation import validate_content, validate_metadata
 from app.jobs import queue
-from app.models import CollectionDocument, Document, DocumentChunk, ProcessingJob
+from app.models import CollectionDocument, Document, DocumentChunk, ProcessingJob, StoredFile
 from app.repositories.ownership import get_collection, get_document
 from app.schemas.documents import DocumentOut, DocumentUpdate, UploadItem
 from app.storage.factory import get_storage
@@ -42,6 +42,20 @@ async def attach_collections(db: AsyncSession, docs: list[Document]) -> list[Doc
     return out
 
 
+async def _check_quotas(db: AsyncSession, user_id: uuid.UUID, incoming: int) -> str | None:
+    s = get_settings()
+    used = (
+        await db.execute(select(func.coalesce(func.sum(Document.size_bytes), 0)).where(Document.user_id == user_id))
+    ).scalar_one()
+    if used + incoming > s.user_storage_quota_mb * 1024 * 1024:
+        return f"Your storage quota ({s.user_storage_quota_mb} MB) would be exceeded. Delete some documents first."
+    if get_storage().name == "db":
+        total = (await db.execute(select(func.coalesce(func.sum(StoredFile.size_bytes), 0)))).scalar_one()
+        if total + incoming > s.db_storage_quota_mb * 1024 * 1024:
+            return "The server's database-backed file storage is full. Ask the administrator to enable S3 storage or free space."
+    return None
+
+
 async def ingest_upload(db: AsyncSession, user_id: uuid.UUID, filename: str, content_type: str | None, data: bytes) -> UploadItem:
     settings = get_settings()
     try:
@@ -49,6 +63,10 @@ async def ingest_upload(db: AsyncSession, user_id: uuid.UUID, filename: str, con
         validate_content(data, meta.ext, settings.max_upload_bytes)
     except AppError as exc:
         return UploadItem(filename=filename[:200], status="rejected", error=exc.message, error_code=exc.code)
+
+    quota_error = await _check_quotas(db, user_id, len(data))
+    if quota_error:
+        return UploadItem(filename=meta.display_name, status="rejected", error=quota_error, error_code="storage_quota_exceeded")
 
     digest = hashlib.sha256(data).hexdigest()
     existing = (

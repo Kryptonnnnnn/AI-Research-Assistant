@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import time
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select, text
 
 from app.api.deps import DB, CurrentUser
 from app.core.config import get_settings
 from app.core.errors import ProviderError
 from app.core.ratelimit import rate_limit
-from app.llm.factory import get_llm
+from app.embeddings.factory import index_signature, retrieval_mode
+from app.llm.factory import get_llm, list_provider_models, llm_status
 from app.models import ProcessingJob
-from app.schemas.settings import ProviderTestIn, ProviderTestOut, SettingsOut, SettingsUpdate
+from app.schemas.settings import ModelListOut, ProviderTestIn, ProviderTestOut, SettingsOut, SettingsUpdate
 from app.services import dashboard_service, settings_service
 
 VERSION = "1.0.0"
@@ -58,6 +59,15 @@ async def test_provider(body: ProviderTestIn, user: CurrentUser, db: DB):
     )
 
 
+@router.get("/settings/models", response_model=ModelListOut)
+async def provider_models(user: CurrentUser, provider: str = Query("groq", pattern="^(groq|ollama)$")):
+    """Models the provider reports (Groq: GET /models). Errors are returned as safe text, never raised as 5xx."""
+    try:
+        return ModelListOut(provider=provider, models=await list_provider_models(provider))
+    except ProviderError as exc:
+        return ModelListOut(provider=provider, models=[], error=exc.message)
+
+
 health_router = APIRouter(tags=["health"])
 
 
@@ -91,15 +101,48 @@ async def ready(db: DB):
     try:
         from app.storage.factory import get_storage
 
-        await get_storage().check()
-        checks["storage"] = {"ok": True, "backend": get_storage().name}
+        storage = get_storage()
+        await storage.check()
+        checks["storage"] = {"ok": True, "backend": storage.name}
+        if storage.name == "db":
+            from app.models import StoredFile
+
+            used = (await db.execute(select(func.coalesce(func.sum(StoredFile.size_bytes), 0)))).scalar_one()
+            checks["storage"].update(used_bytes=int(used), quota_bytes=s.db_storage_quota_mb * 1024 * 1024)
     except Exception as exc:  # noqa: BLE001 - class name only: useful for diagnosis, never secrets
         checks["storage"] = {"ok": False, "backend": s.storage_backend, "error": type(exc).__name__}
-    checks["embeddings"] = {"ok": True, "provider": s.embedding_provider, "dim": s.embedding_dim}
-    checks["llm"] = {"provider": s.llm_provider, "configured": bool(s.llm_model) or s.llm_provider == "mock"}
+    try:
+        from app.db.base import get_sessionmaker
+        from app.jobs.queue import count_stale
+
+        stale = await count_stale(get_sessionmaker())
+    except Exception:  # noqa: BLE001
+        stale = -1
+    checks["embeddings"] = {
+        "ok": True,
+        "provider": s.embedding_provider,
+        "retrieval_mode": retrieval_mode(),
+        "signature": index_signature(),
+        "dim": s.embedding_dim,
+        "stale_documents": stale,
+    }
+    st = llm_status()
+    checks["llm"] = {"provider": s.llm_provider, "model": s.llm_model or None, **st}
+    warnings = []
+    if checks["llm"]["status"] != "ok":
+        warnings.append(f"LLM not usable: {checks['llm']['status']} - {checks['llm']['hint']}")
+    if checks["embeddings"]["retrieval_mode"] == "lexical":
+        warnings.append(
+            "Retrieval is lexical (hash embeddings), not semantic. Set EMBEDDING_PROVIDER to fastembed, sentence-transformers or ollama."
+        )
+    if checks["embeddings"]["stale_documents"] > 0:
+        warnings.append(
+            f"{checks['embeddings']['stale_documents']} document(s) await re-indexing for the active embedding model."
+        )
     ok = all(c.get("ok", True) for c in checks.values())
     from fastapi.responses import JSONResponse
 
     return JSONResponse(
-        {"status": "ready" if ok else "degraded", "version": VERSION, "checks": checks}, status_code=200 if ok else 503
+        {"status": "ready" if ok else "degraded", "version": VERSION, "checks": checks, "warnings": warnings},
+        status_code=200 if ok else 503,
     )

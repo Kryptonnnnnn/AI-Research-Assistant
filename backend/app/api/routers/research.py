@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import DB, SM, CurrentUser
 from app.core.ratelimit import rate_limit
+from app.embeddings.factory import retrieval_mode
 from app.rag import research
 from app.rag.pipeline import label_chunks, log_query, source_from_chunk
 from app.rag.retriever import RetrievalParams, retrieve
-from app.rag.scope import resolve_scope
+from app.rag.scope import count_stale_in_scope, resolve_scope
 from app.schemas.chat import SearchRequest, SearchResponse, TaskRequest, TaskResponse
 from app.services import settings_service
 
@@ -29,12 +30,15 @@ async def semantic_search(body: SearchRequest, user: CurrentUser, db: DB, sm: SM
         context_token_budget=10**9,
     )
     res = await retrieve(db, user.id, body.query, scope, params, fit_budget=False)
+    stale = await count_stale_in_scope(db, scope)
     label_chunks(res.chunks)
     await log_query(sm, user.id, "search", len(res.chunks), (time.perf_counter() - t0) * 1000)
     return SearchResponse(
         query=body.query,
         results=[source_from_chunk(c, cited=False) for c in res.chunks],
         candidates=res.candidates,
+        retrieval_mode=retrieval_mode(),
+        stale_documents=stale,
         latency_ms=round(res.latency_ms, 1),
     )
 
@@ -51,6 +55,7 @@ for _name, _path in (
     ("questions", "/research/questions"),
     ("findings", "/research/findings"),
     ("compare", "/research/compare"),
+    ("conflicts", "/research/conflicts"),
 ):
     router.add_api_route(
         _path, _task(_name), methods=["POST"], response_model=TaskResponse, dependencies=[limit], name=f"research_{_name}"

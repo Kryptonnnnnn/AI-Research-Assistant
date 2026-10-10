@@ -43,9 +43,12 @@ class OllamaProvider:
         if r.status_code >= 400:
             raise ProviderError(f"Ollama returned HTTP {r.status_code}.", code="provider_http_error")
         try:
-            return r.json()["message"]["content"] or ""
-        except (KeyError, ValueError) as exc:
-            raise ProviderError("Unexpected response format from Ollama.") from exc
+            content = r.json()["message"]["content"]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderError("Ollama returned a response in an unexpected format.", code="provider_bad_response") from exc
+        if not isinstance(content, str):
+            raise ProviderError("Ollama returned a response in an unexpected format.", code="provider_bad_response")
+        return content
 
     async def stream(self, messages, *, temperature, max_tokens) -> AsyncIterator[str]:
         try:
@@ -79,6 +82,17 @@ class OllamaProvider:
             raise ProviderError("The Ollama request timed out.", code="provider_timeout") from exc
         except httpx.HTTPError as exc:
             raise ProviderError("Could not reach Ollama. Is it running (`ollama serve`)?", code="provider_unreachable") from exc
+
+    async def list_models(self) -> list[str]:
+        try:
+            async with httpx.AsyncClient(timeout=min(self.timeout, 10)) as client:
+                r = await client.get(f"{self.base_url}/api/tags")
+            r.raise_for_status()
+            return sorted({m["name"] for m in r.json().get("models", []) if m.get("name")})
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            raise ProviderError(
+                "Could not list Ollama models. Is it running (`ollama serve`)?", code="provider_unreachable"
+            ) from exc
 
     async def check(self) -> str:
         try:

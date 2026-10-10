@@ -11,7 +11,7 @@ from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import get_settings
-from app.embeddings.factory import get_embedding_provider
+from app.embeddings.factory import get_embedding_provider, index_signature
 from app.ingestion.chunking import chunk_segments
 from app.ingestion.extractors import ExtractionError, extract
 from app.models import Document, DocumentChunk, ProcessingJob
@@ -103,6 +103,7 @@ async def process_job(sm: async_sessionmaker[AsyncSession], job_id: uuid.UUID) -
                     error_message=None,
                     chunk_count=len(chunks),
                     page_count=extracted.page_count,
+                    index_signature=index_signature(),
                     meta={"extracted_title": extracted.title},
                     updated_at=now,
                 )

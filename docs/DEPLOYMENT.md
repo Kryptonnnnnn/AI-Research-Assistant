@@ -10,7 +10,7 @@
 | Render **free Postgres** | 1 GB, **expires 30 days after creation** | Use Neon (below) for a durable free DB. |
 | Neon (free Postgres) | pgvector available on every plan (`CREATE EXTENSION vector`), HNSW supported | The Alembic migration enables the extension and builds HNSW + full-text indexes. |
 | Vercel | proxied (rewrite) requests to an external origin time out at most after 120 s | Chat answers must start streaming well within that; fine for Groq. Very large uploads through the proxy may hit platform limits (not verified) — keep files ≲ 25 MB (default limit) and test. |
-| PyTorch / sentence-transformers | large (~1 GB image, hundreds of MB RAM) | Free-tier RAM isn't documented by Render; assume it's too small. See "Embeddings on free hosting". |
+| PyTorch / sentence-transformers | large (~1 GB image, hundreds of MB RAM) | Too heavy for the 512 MB / 0.1 CPU free plan. Use fastembed (ONNX) instead; see "Embeddings on free hosting". |
 
 ## Architecture
 `Browser → Vercel (Next.js, proxies /api/*) → Render (FastAPI + embedded worker) → Neon Postgres+pgvector`, files in S3-compatible storage (e.g. Cloudflare R2 / Backblaze B2 / Supabase Storage), LLM from Groq. Locally you can swap in Ollama and local disk.
@@ -36,10 +36,15 @@ Create a bucket and an access key in any S3-compatible service and set `STORAGE_
 4. First deploy logs should show `Started (env=production, jobs=embedded, ...)`.
 
 ### Embeddings on free hosting
-The blueprint uses `EMBEDDING_PROVIDER=hash` (lexical, dependency-free) so the free image stays small. It works for demos but is **not semantic**. Options for real semantic search:
-- Paid Render instance with enough RAM: set Docker build arg `WITH_ML=1` and `EMBEDDING_PROVIDER=sentence-transformers` (also drop `RETRIEVAL_SCORE_THRESHOLD` back to `0.25`).
-- Run the API (or just a worker, `JOB_RUNNER=external`, `python -m app.jobs.worker`) on your own machine / a VPS with Ollama embeddings.
-- Changing embedding model/dimension later: set `EMBEDDING_DIM`, create a new migration for the vector column, then use **Settings → Reindex all documents**.
+The image ships `fastembed` (the same all-MiniLM-L6-v2 model executed by ONNX Runtime, no PyTorch) with the model **baked in**, and the
+blueprint sets `EMBEDDING_PROVIDER=fastembed`, `EMBEDDING_BATCH_SIZE=4`. Measured in the real image run with Docker limits equal to Render's
+free plan (`--memory=512m --cpus=0.1`): idle 83 MiB → **peak 265 MiB**, a 40-page PDF + 9 documents indexed with no OOM kill, relevant
+questions returned cited passages (incl. PDF page numbers) and an off-topic question returned "insufficient evidence". This is a local
+container test, **not** a measurement of Render itself; watch the service's memory graph after deploying.
+If the instance is OOM-killed or too slow, fall back to `EMBEDDING_PROVIDER=hash` (lexical; the UI and `/ready` label it so; "insufficient evidence"
+is unreliable in that mode, see `docs/RETRIEVAL_EVAL.md`) or upgrade the instance.
+Switching embedding model/chunking later is safe: each document stores an `index_signature`; on startup (`AUTO_REINDEX=true`) documents with a
+different signature are re-queued and atomically re-indexed, and retrieval never searches vectors from a different model in the meantime.
 
 Qdrant was not implemented; pgvector is the vector store. (Qdrant Cloud has a free tier if you ever add an adapter behind `app/vectorstore`.)
 

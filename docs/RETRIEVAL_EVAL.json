@@ -1,0 +1,522 @@
+[
+ {
+  "name": "hash",
+  "chunk": 800,
+  "overlap": 120,
+  "hybrid": true,
+  "threshold": 0.1,
+  "chunks": 9,
+  "index_s": 0.1,
+  "hit@1": 0.889,
+  "hit@3": 1.0,
+  "hit@5": 1.0,
+  "hit@8": 1.0,
+  "mrr": 0.932,
+  "p_hit@3": 1.0,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 1.0
+   },
+   "0.15": {
+    "answerable": 0.963,
+    "false_pos": 0.833
+   },
+   "0.2": {
+    "answerable": 0.926,
+    "false_pos": 0.5
+   },
+   "0.25": {
+    "answerable": 0.852,
+    "false_pos": 0.333
+   },
+   "0.3": {
+    "answerable": 0.778,
+    "false_pos": 0.167
+   },
+   "0.35": {
+    "answerable": 0.667,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.519,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.111,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 1.7,
+  "lat_ms_max": 2.9
+ },
+ {
+  "name": "hash",
+  "chunk": 800,
+  "overlap": 120,
+  "hybrid": false,
+  "threshold": 0.1,
+  "chunks": 9,
+  "index_s": 0.08,
+  "hit@1": 0.556,
+  "hit@3": 0.852,
+  "hit@5": 0.926,
+  "hit@8": 1.0,
+  "mrr": 0.723,
+  "p_hit@3": 0.857,
+  "k_hit@3": 0.833,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 1.0
+   },
+   "0.15": {
+    "answerable": 0.889,
+    "false_pos": 0.833
+   },
+   "0.2": {
+    "answerable": 0.852,
+    "false_pos": 0.333
+   },
+   "0.25": {
+    "answerable": 0.481,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 0.111,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.0,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.0,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.0,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 1.5,
+  "lat_ms_max": 2.4
+ },
+ {
+  "name": "hash",
+  "chunk": 200,
+  "overlap": 40,
+  "hybrid": true,
+  "threshold": 0.1,
+  "chunks": 18,
+  "index_s": 0.08,
+  "hit@1": 0.889,
+  "hit@3": 0.963,
+  "hit@5": 0.963,
+  "hit@8": 0.963,
+  "mrr": 0.914,
+  "p_hit@3": 1.0,
+  "k_hit@3": 0.833,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 1.0
+   },
+   "0.15": {
+    "answerable": 0.963,
+    "false_pos": 1.0
+   },
+   "0.2": {
+    "answerable": 0.963,
+    "false_pos": 0.5
+   },
+   "0.25": {
+    "answerable": 0.963,
+    "false_pos": 0.333
+   },
+   "0.3": {
+    "answerable": 0.889,
+    "false_pos": 0.167
+   },
+   "0.35": {
+    "answerable": 0.704,
+    "false_pos": 0.167
+   },
+   "0.4": {
+    "answerable": 0.593,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.148,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 1.9,
+  "lat_ms_max": 2.6
+ },
+ {
+  "name": "fastembed MiniLM",
+  "chunk": 800,
+  "overlap": 120,
+  "hybrid": true,
+  "threshold": 0.25,
+  "chunks": 9,
+  "index_s": 0.24,
+  "hit@1": 0.963,
+  "hit@3": 1.0,
+  "hit@5": 1.0,
+  "hit@8": 1.0,
+  "mrr": 0.975,
+  "p_hit@3": 1.0,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 0.833
+   },
+   "0.15": {
+    "answerable": 0.963,
+    "false_pos": 0.333
+   },
+   "0.2": {
+    "answerable": 0.963,
+    "false_pos": 0.0
+   },
+   "0.25": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.852,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.778,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.63,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 3.4,
+  "lat_ms_max": 4.2
+ },
+ {
+  "name": "fastembed MiniLM",
+  "chunk": 800,
+  "overlap": 120,
+  "hybrid": false,
+  "threshold": 0.25,
+  "chunks": 9,
+  "index_s": 0.22,
+  "hit@1": 0.926,
+  "hit@3": 1.0,
+  "hit@5": 1.0,
+  "hit@8": 1.0,
+  "mrr": 0.957,
+  "p_hit@3": 1.0,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 0.833
+   },
+   "0.15": {
+    "answerable": 0.963,
+    "false_pos": 0.167
+   },
+   "0.2": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.25": {
+    "answerable": 0.778,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 0.63,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.63,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.556,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.296,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 3.2,
+  "lat_ms_max": 3.8
+ },
+ {
+  "name": "fastembed MiniLM",
+  "chunk": 400,
+  "overlap": 60,
+  "hybrid": true,
+  "threshold": 0.25,
+  "chunks": 9,
+  "index_s": 0.26,
+  "hit@1": 0.963,
+  "hit@3": 1.0,
+  "hit@5": 1.0,
+  "hit@8": 1.0,
+  "mrr": 0.975,
+  "p_hit@3": 1.0,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 0.833
+   },
+   "0.15": {
+    "answerable": 0.963,
+    "false_pos": 0.333
+   },
+   "0.2": {
+    "answerable": 0.963,
+    "false_pos": 0.0
+   },
+   "0.25": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.852,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.778,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.63,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 3.5,
+  "lat_ms_max": 4.1
+ },
+ {
+  "name": "fastembed MiniLM",
+  "chunk": 200,
+  "overlap": 40,
+  "hybrid": true,
+  "threshold": 0.25,
+  "chunks": 18,
+  "index_s": 0.27,
+  "hit@1": 0.963,
+  "hit@3": 0.963,
+  "hit@5": 0.963,
+  "hit@8": 0.963,
+  "mrr": 0.963,
+  "p_hit@3": 0.952,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 1.0
+   },
+   "0.15": {
+    "answerable": 1.0,
+    "false_pos": 0.333
+   },
+   "0.2": {
+    "answerable": 1.0,
+    "false_pos": 0.0
+   },
+   "0.25": {
+    "answerable": 1.0,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 0.963,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.778,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 3.5,
+  "lat_ms_max": 4.5
+ },
+ {
+  "name": "fastembed MiniLM",
+  "chunk": 200,
+  "overlap": 40,
+  "hybrid": false,
+  "threshold": 0.25,
+  "chunks": 18,
+  "index_s": 0.27,
+  "hit@1": 0.889,
+  "hit@3": 0.889,
+  "hit@5": 0.889,
+  "hit@8": 0.889,
+  "mrr": 0.889,
+  "p_hit@3": 0.857,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 1.0
+   },
+   "0.15": {
+    "answerable": 1.0,
+    "false_pos": 0.333
+   },
+   "0.2": {
+    "answerable": 0.963,
+    "false_pos": 0.0
+   },
+   "0.25": {
+    "answerable": 0.963,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 0.815,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.704,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.593,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.37,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 3.4,
+  "lat_ms_max": 4.4
+ },
+ {
+  "name": "fastembed MiniLM",
+  "chunk": 120,
+  "overlap": 24,
+  "hybrid": true,
+  "threshold": 0.25,
+  "chunks": 28,
+  "index_s": 0.26,
+  "hit@1": 0.926,
+  "hit@3": 0.926,
+  "hit@5": 0.926,
+  "hit@8": 0.926,
+  "mrr": 0.926,
+  "p_hit@3": 0.905,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 0.833
+   },
+   "0.15": {
+    "answerable": 1.0,
+    "false_pos": 0.667
+   },
+   "0.2": {
+    "answerable": 1.0,
+    "false_pos": 0.0
+   },
+   "0.25": {
+    "answerable": 1.0,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 1.0,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.963,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.852,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 3.7,
+  "lat_ms_max": 4.5
+ },
+ {
+  "name": "sentence-transformers MiniLM",
+  "chunk": 200,
+  "overlap": 40,
+  "hybrid": true,
+  "threshold": 0.25,
+  "chunks": 18,
+  "index_s": 1.4,
+  "hit@1": 0.963,
+  "hit@3": 0.963,
+  "hit@5": 0.963,
+  "hit@8": 0.963,
+  "mrr": 0.963,
+  "p_hit@3": 0.952,
+  "k_hit@3": 1.0,
+  "sweep": {
+   "0.1": {
+    "answerable": 1.0,
+    "false_pos": 1.0
+   },
+   "0.15": {
+    "answerable": 1.0,
+    "false_pos": 0.333
+   },
+   "0.2": {
+    "answerable": 1.0,
+    "false_pos": 0.0
+   },
+   "0.25": {
+    "answerable": 1.0,
+    "false_pos": 0.0
+   },
+   "0.3": {
+    "answerable": 0.963,
+    "false_pos": 0.0
+   },
+   "0.35": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.4": {
+    "answerable": 0.926,
+    "false_pos": 0.0
+   },
+   "0.5": {
+    "answerable": 0.778,
+    "false_pos": 0.0
+   }
+  },
+  "lat_ms_p50": 8.4,
+  "lat_ms_max": 380.3
+ }
+]

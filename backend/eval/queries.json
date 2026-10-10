@@ -1,0 +1,200 @@
+[
+ {
+  "kind": "paraphrase",
+  "query": "Why do leaves look green?",
+  "doc": "photosynthesis.md",
+  "span": "green light is mostly reflected"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What makes plants stop taking in CO2 when they are short of water?",
+  "doc": "photosynthesis.md",
+  "span": "Water stress causes stomata"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Which enzyme is slow and sometimes wastes effort grabbing the wrong gas?",
+  "doc": "photosynthesis.md",
+  "span": "photorespiration"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "How can a model look at all words in a sentence simultaneously instead of one by one?",
+  "doc": "transformers.md",
+  "span": "every other position in a single step"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "How does the network know the order of words if attention ignores it?",
+  "doc": "transformers.md",
+  "span": "Attention by itself has no notion of word order"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What is the main downside of this architecture for very long inputs?",
+  "doc": "transformers.md",
+  "span": "grow quadratically with sequence length"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Why are the genetic instructions packaged in fatty droplets?",
+  "doc": "mrna-vaccines.md",
+  "span": "wrapped in tiny lipid nanoparticles"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Does the injected material change a person's genes?",
+  "doc": "mrna-vaccines.md",
+  "span": "does not alter DNA"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Why was freezing so important for early shots?",
+  "doc": "mrna-vaccines.md",
+  "span": "ultra-cold freezers"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What happens where two landmasses crash into each other?",
+  "doc": "plate-tectonics.md",
+  "span": "crumpled upward into mountains"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What kind of boundary is responsible for earthquakes in California?",
+  "doc": "plate-tectonics.md",
+  "span": "San Andreas Fault"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What evidence on the sea floor supports continents drifting apart?",
+  "doc": "plate-tectonics.md",
+  "span": "symmetric magnetic stripes"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "How does a connection ramp up its sending speed at the start?",
+  "doc": "tcp-congestion.md",
+  "span": "roughly doubles every round trip"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What does the sender do when it gets a timeout instead of repeated acks?",
+  "doc": "tcp-congestion.md",
+  "span": "A timeout is treated as more severe"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Which newer design measures bandwidth instead of waiting for drops?",
+  "doc": "tcp-congestion.md",
+  "span": "BBR estimate the bottleneck bandwidth"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Did working from home increase output for developers?",
+  "doc": "remote-work-study-a.md",
+  "span": "increased by 13 percent"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Which experiment found worse ticket resolution when people stayed home?",
+  "doc": "remote-work-study-b.md",
+  "span": "decreased by 8 percent"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What happens to what your money can buy when prices keep rising?",
+  "doc": "inflation.md",
+  "span": "reduces the purchasing power of money"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "How do central banks slow down price growth?",
+  "doc": "inflation.md",
+  "span": "Raising the rate makes borrowing more expensive"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "Why do reefs only grow in clear, sunny, nutrient-poor seas?",
+  "doc": "coral-reefs.md",
+  "span": "thrive in clear, shallow, sunlit tropical waters"
+ },
+ {
+  "kind": "paraphrase",
+  "query": "What causes corals to turn white?",
+  "doc": "coral-reefs.md",
+  "span": "expel their algae"
+ },
+ {
+  "kind": "keyword",
+  "query": "RuBisCO",
+  "doc": "photosynthesis.md",
+  "span": "RuBisCO is the most abundant enzyme"
+ },
+ {
+  "kind": "keyword",
+  "query": "zooxanthellae",
+  "doc": "coral-reefs.md",
+  "span": "microscopic algae called zooxanthellae"
+ },
+ {
+  "kind": "keyword",
+  "query": "Mid-Atlantic Ridge",
+  "doc": "plate-tectonics.md",
+  "span": "Mid-Atlantic Ridge is the classic example"
+ },
+ {
+  "kind": "keyword",
+  "query": "Reno CUBIC",
+  "doc": "tcp-congestion.md",
+  "span": "Reno and CUBIC"
+ },
+ {
+  "kind": "keyword",
+  "query": "lipid nanoparticles",
+  "doc": "mrna-vaccines.md",
+  "span": "lipid nanoparticles"
+ },
+ {
+  "kind": "keyword",
+  "query": "rotary embeddings",
+  "doc": "transformers.md",
+  "span": "rotary embeddings"
+ },
+ {
+  "kind": "negative",
+  "query": "Who won the 1966 football world cup final?",
+  "doc": null,
+  "span": null
+ },
+ {
+  "kind": "negative",
+  "query": "What is the best recipe for chocolate chip cookies?",
+  "doc": null,
+  "span": null
+ },
+ {
+  "kind": "negative",
+  "query": "How do I change a flat bicycle tyre?",
+  "doc": null,
+  "span": null
+ },
+ {
+  "kind": "negative",
+  "query": "What is the capital of Australia?",
+  "doc": null,
+  "span": null
+ },
+ {
+  "kind": "negative",
+  "query": "Explain the plot of Hamlet.",
+  "doc": null,
+  "span": null
+ },
+ {
+  "kind": "negative",
+  "query": "How many calories are in a banana?",
+  "doc": null,
+  "span": null
+ }
+]

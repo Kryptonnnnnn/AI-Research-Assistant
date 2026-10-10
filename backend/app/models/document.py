@@ -40,6 +40,7 @@ class Document(UUIDPk, Timestamps, Base):
     progress: Mapped[int] = mapped_column(Integer, default=0)
     stage: Mapped[str] = mapped_column(String(32), default="queued")
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
+    index_signature: Mapped[str | None] = mapped_column(String(300), default=None)  # embedding model + chunking used
     access_count: Mapped[int] = mapped_column(Integer, default=0)
     last_accessed_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), default=None)
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
