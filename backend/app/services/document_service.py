@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.errors import AppError, ConflictError
+from app.core.errors import AppError, ConflictError, StorageUnavailable
 from app.ingestion.validation import validate_content, validate_metadata
 from app.jobs import queue
 from app.models import CollectionDocument, Document, DocumentChunk, ProcessingJob
@@ -65,7 +65,11 @@ async def ingest_upload(db: AsyncSession, user_id: uuid.UUID, filename: str, con
 
     key = f"{user_id}/{meta.internal_name}"
     storage = get_storage()
-    await storage.save(key, data, meta.mime)
+    try:
+        await storage.save(key, data, meta.mime)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Storage save failed (%s)", type(exc).__name__, exc_info=True)
+        raise StorageUnavailable("File storage is unavailable right now. Please try again later.") from exc
     doc = Document(
         user_id=user_id,
         title=PurePosixPath(meta.display_name).stem[:500] or "Untitled",

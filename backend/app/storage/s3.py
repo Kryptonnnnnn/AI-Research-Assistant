@@ -36,6 +36,9 @@ class S3Storage:
     async def delete(self, key: str) -> None:
         await asyncio.to_thread(self.client.delete_object, Bucket=self.bucket, Key=key)
 
+    async def check(self) -> None:
+        await asyncio.to_thread(self.client.head_bucket, Bucket=self.bucket)
+
     async def exists(self, key: str) -> bool:
         def _head() -> bool:
             try:

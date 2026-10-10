@@ -88,7 +88,13 @@ async def ready(db: DB):
         }
     except Exception:  # noqa: BLE001
         checks["database"] = {"ok": False}
-    checks["storage"] = {"ok": True, "backend": s.storage_backend}
+    try:
+        from app.storage.factory import get_storage
+
+        await get_storage().check()
+        checks["storage"] = {"ok": True, "backend": s.storage_backend}
+    except Exception as exc:  # noqa: BLE001 - class name only: useful for diagnosis, never secrets
+        checks["storage"] = {"ok": False, "backend": s.storage_backend, "error": type(exc).__name__}
     checks["embeddings"] = {"ok": True, "provider": s.embedding_provider, "dim": s.embedding_dim}
     checks["llm"] = {"provider": s.llm_provider, "configured": bool(s.llm_model) or s.llm_provider == "mock"}
     ok = all(c.get("ok", True) for c in checks.values())

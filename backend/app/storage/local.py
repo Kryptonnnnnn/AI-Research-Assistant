@@ -39,5 +39,10 @@ class LocalStorage:
 
         await asyncio.to_thread(_rm)
 
+    async def check(self) -> None:
+        probe = self.root / ".healthcheck"
+        await asyncio.to_thread(probe.write_bytes, b"ok")
+        await asyncio.to_thread(probe.unlink)
+
     async def exists(self, key: str) -> bool:
         return await asyncio.to_thread(self._path(key).exists)

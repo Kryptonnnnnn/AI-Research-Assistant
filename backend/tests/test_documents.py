@@ -166,3 +166,21 @@ async def test_collections_crud_and_filter(alice):
     assert (await alice.get("/api/v1/collections")).json()[0]["document_count"] == 1
     assert (await alice.delete(f"/api/v1/collections/{col['id']}")).status_code == 204
     assert (await alice.get(f"/api/v1/documents/{d1['id']}")).status_code == 200  # documents survive collection deletion
+
+
+async def test_storage_failure_is_a_clear_503_and_ready_reports_it(alice, monkeypatch):
+    from app.storage.factory import get_storage
+
+    async def boom(*a, **k):
+        raise ConnectionError("bucket unreachable")
+
+    monkeypatch.setattr(get_storage(), "save", boom)
+    r = await upload(alice, "a.txt", PHOTO.encode())
+    assert r.status_code == 503 and r.json()["error"]["code"] == "storage_unavailable"
+    monkeypatch.setattr(get_storage(), "check", boom)
+    ready = await alice.get("/ready")
+    assert ready.status_code == 503 and ready.json()["checks"]["storage"] == {
+        "ok": False,
+        "backend": "local",
+        "error": "ConnectionError",
+    }

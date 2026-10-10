@@ -59,6 +59,11 @@ class RateLimited(AppError):
     code = "rate_limited"
 
 
+class StorageUnavailable(AppError):
+    status_code = 503
+    code = "storage_unavailable"
+
+
 class ProviderError(AppError):
     """An upstream LLM / embedding provider failed."""
 
