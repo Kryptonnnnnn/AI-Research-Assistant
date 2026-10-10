@@ -53,21 +53,25 @@ def explain_http_error(resp: httpx.Response, api_key: str) -> ProviderError:
 class GroqProvider:
     name = "groq"
 
-    def __init__(self, api_key: str, model: str, base_url: str, timeout: float):
+    def __init__(self, api_key: str, model: str, base_url: str, timeout: float, reasoning_effort: str = ""):
         if not api_key:
             raise ProviderError("GROQ_API_KEY is not configured on the server.", code="provider_not_configured")
         if not model:
             raise ProviderError("No model configured. Set LLM_MODEL (or choose one in Settings).", code="provider_not_configured")
         self.api_key, self.model, self.base_url, self.timeout = api_key, model, base_url.rstrip("/"), timeout
+        self.reasoning_effort = reasoning_effort
 
     def _payload(self, messages: list[ChatMessage], temperature: float, max_tokens: int, stream: bool) -> dict:
-        return {
+        payload = {
             "model": self.model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": stream,
         }
+        if self.reasoning_effort:  # reasoning tokens count against max_tokens; "low" keeps room for the visible answer
+            payload["reasoning_effort"] = self.reasoning_effort
+        return payload
 
     @property
     def _headers(self) -> dict:

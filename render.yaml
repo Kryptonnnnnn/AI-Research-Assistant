@@ -30,6 +30,11 @@ services:
       - { key: EMBEDDING_BATCH_SIZE, value: "4" }      # small batches keep peak RAM down on 512 MB
       - { key: MAX_UPLOAD_MB, value: "10" }
       - { key: LLM_PROVIDER, value: groq }
-      - { key: LLM_MODEL, value: llama-3.3-70b-versatile }  # listed as a production model at console.groq.com/docs/models (checked 2026-10-10). Validate with Settings -> Test connection; change if Groq retires it
+      # Verified against the LIVE Groq /models list for the project key on 2026-10-10 (listed: allam-2-7b, openai/gpt-oss-120b,
+      # openai/gpt-oss-20b, qwen/qwen3.8-27b). NOTE: llama-3.3-70b-versatile appeared on docs.groq.com but was NOT in the live list.
+      # Always re-check with Settings -> Test connection / Refresh models; Groq retires models.
+      - { key: LLM_MODEL, value: openai/gpt-oss-120b }
+      - { key: GROQ_REASONING_EFFORT, value: low }      # gpt-oss are reasoning models; keeps token budget for the visible answer
+      - { key: LLM_MAX_OUTPUT_TOKENS, value: "2500" }
       - { key: GROQ_API_KEY, sync: false }
       - { key: ALLOW_MOCK_PROVIDER, value: "false" }

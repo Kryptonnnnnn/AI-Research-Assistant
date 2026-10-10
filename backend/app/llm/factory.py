@@ -22,7 +22,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> LLMProvide
     if provider == "groq":
         from app.llm.groq_provider import GroqProvider
 
-        return GroqProvider(s.groq_api_key, model, s.groq_base_url, s.llm_timeout_seconds)
+        return GroqProvider(s.groq_api_key, model, s.groq_base_url, s.llm_timeout_seconds, s.groq_reasoning_effort)
     if provider == "ollama":
         from app.llm.ollama_provider import OllamaProvider
 

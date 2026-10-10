@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.2
     llm_max_output_tokens: int = 1500
     groq_api_key: str = ""
+    groq_reasoning_effort: str = ""  # "low"|"medium"|"high" for reasoning models (e.g. gpt-oss); empty = parameter not sent
     groq_base_url: str = "https://api.groq.com/openai/v1"
     ollama_base_url: str = "http://localhost:11434"
     allow_mock_provider: bool = True

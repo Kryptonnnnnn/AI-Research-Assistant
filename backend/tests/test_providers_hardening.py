@@ -190,3 +190,16 @@ async def test_chat_surfaces_rate_limit_as_429(alice, monkeypatch):
     set_llm_override(Limited())
     r = await alice.post("/api/v1/chat", json={"question": "What do chloroplasts absorb?"})
     assert r.status_code == 429 and r.json()["error"]["code"] == "provider_rate_limited"
+
+
+async def test_reasoning_effort_is_sent_only_when_configured(monkeypatch):
+    seen = []
+
+    def handler(req: httpx.Request):
+        seen.append(json.loads(req.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    patch_httpx(monkeypatch, handler)
+    await GroqProvider(KEY, "m", "https://api.groq.com/openai/v1", 5).complete(MSGS, temperature=0, max_tokens=5)
+    await GroqProvider(KEY, "m", "https://api.groq.com/openai/v1", 5, "low").complete(MSGS, temperature=0, max_tokens=5)
+    assert "reasoning_effort" not in seen[0] and seen[1]["reasoning_effort"] == "low"
