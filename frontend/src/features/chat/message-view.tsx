@@ -1,11 +1,13 @@
 "use client";
 
-import { AlertTriangle, BookmarkPlus, Check, ChevronDown, Copy, Info, Loader2, OctagonX, RefreshCw } from "lucide-react";
+import { AlertTriangle, BookmarkPlus, Check, ChevronDown, Copy, Info, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SourcesList } from "@/features/research/task-result";
+import { retrievalModeLabel } from "@/lib/format";
+import { ChatErrorCard } from "./error-cards";
 import { cn } from "@/lib/utils";
 import type { MessageOut, SourceOut } from "@/types/api";
 
@@ -19,7 +21,7 @@ export function UserBubble({ text }: { text: string }) {
   );
 }
 
-function AllSources({ sources }: { sources: SourceOut[] }) {
+function AllSources({ sources, mode, stale }: { sources: SourceOut[]; mode?: string; stale?: number }) {
   const [open, setOpen] = useState(false);
   if (!sources.length) return null;
   const ordered = [...sources].sort((a, b) => Number(b.cited) - Number(a.cited));
@@ -28,7 +30,18 @@ function AllSources({ sources }: { sources: SourceOut[] }) {
       <button type="button" className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground" aria-expanded={open} onClick={() => setOpen((v) => !v)} data-testid="toggle-sources">
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden />
         All retrieved sources ({sources.length}) · {sources.filter((s) => s.cited).length} cited
+        {retrievalModeLabel(mode) && (
+          <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-normal" data-testid="retrieval-mode" title={retrievalModeLabel(mode) ?? undefined}>
+            <span className="hidden sm:inline">{retrievalModeLabel(mode)}</span>
+            <span className="sm:hidden">{mode === "semantic" ? "Semantic" : "Lexical"}</span>
+          </span>
+        )}
       </button>
+      {!!stale && stale > 0 && (
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" data-testid="stale-note">
+          {stale} document{stale > 1 ? "s are" : " is"} still being re-indexed, so results may be incomplete.
+        </p>
+      )}
       {open && (
         <div className="mt-2" data-testid="all-sources">
           <SourcesList sources={ordered} title="Retrieved sources" />
@@ -70,9 +83,8 @@ export function AssistantBubble({
           </div>
         )}
         {failed ? (
-          <div role="alert" className="flex items-start gap-2 text-sm text-destructive" data-testid="message-error">
-            <OctagonX className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>{message.error ?? "The answer could not be generated."}</span>
+          <div data-testid="message-error">
+            <ChatErrorCard code={null} message={message.error ?? "The answer could not be generated."} testId="message-error-card" className="border-0 bg-transparent p-0" />
           </div>
         ) : (
           <Markdown content={message.content} citations={message.citations} />
@@ -82,7 +94,7 @@ export function AssistantBubble({
             Stopped
           </Badge>
         )}
-        <AllSources sources={message.citations} />
+        <AllSources sources={message.citations} mode={meta.retrieval_mode} stale={meta.stale_documents} />
         <div className="mt-3 flex flex-wrap items-center gap-1 border-t pt-2">
           {!failed && (
             <>

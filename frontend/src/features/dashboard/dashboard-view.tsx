@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BookMarked, FileText, FolderOpen, HardDrive, MessageSquare, Search, TableIcon, BarChart3, Upload } from "lucide-react";
+import { AlertTriangle, BarChart3, BookMarked, CheckCircle2, FileText, FolderOpen, HardDrive, Loader2, MessageSquare, Plus, RefreshCw, Search, TableIcon, Upload } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -10,13 +10,18 @@ import { PageContainer } from "@/components/shared/page-container";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useReprocess } from "@/features/documents/document-dialogs";
+import { FileTile } from "@/features/documents/file-tile";
+import { StatusBadge } from "@/features/documents/status-badge";
 import { api } from "@/lib/api";
-import { formatBytes, timeAgo } from "@/lib/format";
-import { qk } from "@/lib/query-keys";
+import { formatBytes, stageLabel, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Dashboard } from "@/types/api";
+import type { Dashboard, JobOut, Page } from "@/types/api";
+
+import { useDashboard } from "./hooks";
 
 function Stat({ label, value, icon: Icon, hint, testId }: { label: string; value: React.ReactNode; icon: React.ElementType; hint?: string; testId: string }) {
   return (
@@ -29,7 +34,161 @@ function Stat({ label, value, icon: Icon, hint, testId }: { label: string; value
           </p>
           {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
         </div>
-        <Icon className="size-4 text-muted-foreground" aria-hidden />
+        <span className="flex size-8 items-center justify-center rounded-lg bg-muted">
+          <Icon className="size-4 text-muted-foreground" aria-hidden />
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Ready / processing / failed as one proportional bar. Numbers are real; an empty library renders nothing. */
+function LibraryHealth({ docs }: { docs: Dashboard["documents"] }) {
+  const items = [
+    { key: "ready", label: "Processed", n: docs.ready, color: "var(--chart-3)", testId: "stat-ready" },
+    { key: "processing", label: "Processing", n: docs.processing, color: "var(--chart-1)", testId: "stat-processing" },
+    { key: "failed", label: "Failed", n: docs.failed, color: "var(--destructive)", testId: "stat-failed" },
+  ];
+  return (
+    <Card size="sm" data-testid="doc-status-breakdown">
+      <CardContent className="space-y-3">
+        <div className="flex h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${docs.ready} processed, ${docs.processing} processing, ${docs.failed} failed`}>
+          {docs.total > 0 && items.map((i) => i.n > 0 && <div key={i.key} style={{ width: `${(i.n / docs.total) * 100}%`, background: i.color }} />)}
+        </div>
+        <dl className="grid grid-cols-3 gap-3">
+          {items.map((i) => (
+            <div key={i.key}>
+              <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="size-2 rounded-full" style={{ background: i.color }} aria-hidden />
+                {i.label}
+              </dt>
+              <dd className="text-xl font-semibold tabular-nums" data-testid={i.testId}>
+                {i.n}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+function IndexHealthBanner({ stale, signature }: { stale: number; signature: string }) {
+  if (stale <= 0) return null;
+  return (
+    <div role="status" data-testid="index-health-banner" className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+      <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-amber-700 dark:text-amber-400" aria-hidden />
+      <div>
+        <p className="font-medium">
+          {stale} document{stale > 1 ? "s are" : " is"} being re-indexed
+        </p>
+        <p className="text-muted-foreground">
+          The embedding model or chunking settings changed, so these documents are rebuilt for the current index (<code className="text-xs">{signature}</code>). Search quality is reduced until they finish.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function RecentDocuments({ docs }: { docs: NonNullable<Dashboard["recent_documents"]> }) {
+  return (
+    <Card data-testid="recent-documents">
+      <CardHeader>
+        <CardTitle>Recent documents</CardTitle>
+        <CardAction>
+          <Link href="/documents" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            View library
+          </Link>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {docs.length === 0 ? (
+          <EmptyState icon={Upload} title="No documents yet" description="Upload a PDF, Word, text or Markdown file to start asking questions." action={<Link href="/documents" className={buttonVariants()}>Upload your first document</Link>} />
+        ) : (
+          <ul className="divide-y">
+            {docs.map((d) => (
+              <li key={d.id} className="flex items-center gap-3 py-2.5" data-testid="recent-document" data-status={d.status}>
+                <FileTile ext={d.file_ext} />
+                <div className="min-w-0 flex-1">
+                  <Link href={`/documents/${d.id}`} className="block truncate text-sm font-medium hover:text-primary">
+                    {d.title}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    {formatBytes(d.size_bytes)}
+                    {d.page_count != null ? ` · ${d.page_count} pages` : ""} · {timeAgo(d.created_at)}
+                  </p>
+                </div>
+                <StatusBadge doc={d} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProcessingActivity({ jobs, failedDocs }: { jobs: NonNullable<Dashboard["active_jobs"]>; failedDocs: number }) {
+  const reprocess = useReprocess();
+  const failed = useQuery({
+    queryKey: ["jobs", { status: "failed", page_size: 3, dashboard: true }],
+    queryFn: () => api<Page<JobOut>>("/jobs", { query: { status: "failed", page_size: 3 } }),
+    enabled: failedDocs > 0,
+  });
+  const idle = jobs.length === 0 && !(failed.data?.items.length ?? 0);
+  return (
+    <Card data-testid="processing-activity">
+      <CardHeader>
+        <CardTitle>Processing activity</CardTitle>
+        <CardDescription>Documents being indexed right now, and recent failures.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {idle && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="processing-idle">
+            <CheckCircle2 className="size-4 text-emerald-600" aria-hidden /> Nothing is processing. Uploads appear here while they are indexed.
+          </p>
+        )}
+        {jobs.length > 0 && (
+          <ul className="space-y-3" aria-label="Active jobs">
+            {jobs.map((j) => (
+              <li key={j.id} data-testid="active-job">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <Link href={`/documents/${j.document_id}`} className="truncate font-medium hover:text-primary">
+                    {j.document_title}
+                  </Link>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{j.progress}%</span>
+                </div>
+                <Progress value={j.progress} aria-label={`Progress for ${j.document_title}`} className="mt-1 h-1.5" />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {j.status === "queued" ? "Queued" : stageLabel(j.stage)}
+                  {j.attempts > 1 ? ` · attempt ${j.attempts}/${j.max_attempts}` : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+        {(failed.data?.items.length ?? 0) > 0 && (
+          <div>
+            <h4 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-destructive uppercase">
+              <AlertTriangle className="size-3.5" aria-hidden /> Failed
+            </h4>
+            <ul className="space-y-2">
+              {failed.data!.items.map((j) => (
+                <li key={j.id} className="rounded-lg border border-destructive/30 bg-destructive/5 p-2.5 text-sm" data-testid="failed-job">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/documents/${j.document_id}`} className="min-w-0 truncate font-medium hover:text-primary">
+                      {j.document_title ?? j.document_id}
+                    </Link>
+                    <Button size="xs" variant="outline" onClick={() => reprocess.mutate(j.document_id)} disabled={reprocess.isPending}>
+                      <RefreshCw aria-hidden /> Retry
+                    </Button>
+                  </div>
+                  {j.error_message && <p className="mt-1 text-xs text-muted-foreground">{j.error_message}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -98,17 +257,22 @@ const KIND_LABEL: Record<string, string> = { chat: "Chat questions", search: "Se
 const KIND_COLOR: Record<string, string> = { chat: "var(--chart-1)", search: "var(--chart-2)", research: "var(--chart-3)" };
 
 export function DashboardView() {
-  const { data, error, isLoading, refetch } = useQuery({ queryKey: qk.dashboard, queryFn: () => api<Dashboard>("/dashboard") });
+  const { data, error, isLoading, refetch } = useDashboard();
 
   return (
-    <PageContainer>
+    <PageContainer wide>
       <PageHeader
         title="Dashboard"
         description="Live numbers from your own workspace."
         actions={
-          <Link href="/documents" className={buttonVariants({ variant: "default" })}>
-            <Upload aria-hidden /> Upload documents
-          </Link>
+          <>
+            <Link href="/chat" className={buttonVariants({ variant: "outline" })}>
+              <Plus aria-hidden /> New chat
+            </Link>
+            <Link href="/documents" className={buttonVariants({ variant: "default" })}>
+              <Upload aria-hidden /> Upload documents
+            </Link>
+          </>
         }
       />
       {error ? (
@@ -124,20 +288,20 @@ export function DashboardView() {
         </div>
       ) : (
         <div className="space-y-4">
+          <IndexHealthBanner stale={data.index_health?.stale_documents ?? 0} signature={data.index_health?.current_signature ?? ""} />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Stat label="Documents" value={data.documents.total} icon={FileText} testId="stat-documents" hint={`${data.documents.ready} ready · ${data.documents.processing} processing · ${data.documents.failed} failed`} />
             <Stat label="Conversations" value={data.conversations} icon={MessageSquare} testId="stat-conversations" hint={`${data.questions_asked} questions asked`} />
             <Stat label="Storage used" value={formatBytes(data.storage_bytes)} icon={HardDrive} testId="stat-storage" hint="Original uploaded files" />
             <Stat label="Notes · Collections" value={`${data.notes} · ${data.collections}`} icon={BookMarked} testId="stat-notes" />
           </div>
-          <div className="grid gap-3 sm:grid-cols-3" data-testid="doc-status-breakdown">
-            <Stat label="Processed" value={data.documents.ready} icon={FileText} testId="stat-ready" />
-            <Stat label="Processing" value={data.documents.processing} icon={FileText} testId="stat-processing" />
-            <Stat label="Failed" value={data.documents.failed} icon={FileText} testId="stat-failed" />
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="space-y-4 lg:col-span-2">
+              <LibraryHealth docs={data.documents} />
+              <RecentDocuments docs={data.recent_documents ?? []} />
+            </div>
+            <ProcessingActivity jobs={data.active_jobs ?? []} failedDocs={data.documents.failed} />
           </div>
-          {data.documents.total === 0 && (
-            <EmptyState icon={Upload} title="Your library is empty" description="Upload a PDF, Word, text or Markdown file to start asking questions." action={<Link href="/documents" className={buttonVariants()}>Upload your first document</Link>} />
-          )}
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <ActivityChart data={data.queries_last_14_days} />
@@ -217,9 +381,15 @@ export function DashboardView() {
             </Card>
           </div>
           <div className="flex flex-wrap gap-2 pt-1 text-sm text-muted-foreground">
-            <Link href="/search" className="inline-flex items-center gap-1 hover:text-primary"><Search className="size-3.5" aria-hidden />Semantic search</Link>
+            <Link href="/search" className="inline-flex items-center gap-1 hover:text-primary">
+              <Search className="size-3.5" aria-hidden />
+              Semantic search
+            </Link>
             <span aria-hidden>·</span>
-            <Link href="/collections" className="inline-flex items-center gap-1 hover:text-primary"><FolderOpen className="size-3.5" aria-hidden />Collections</Link>
+            <Link href="/collections" className="inline-flex items-center gap-1 hover:text-primary">
+              <FolderOpen className="size-3.5" aria-hidden />
+              Collections
+            </Link>
           </div>
         </div>
       )}

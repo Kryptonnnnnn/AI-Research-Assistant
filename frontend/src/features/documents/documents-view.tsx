@@ -1,9 +1,9 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, FileText, FolderPlus, MessageSquare, MoreHorizontal, Pencil, RefreshCw, Search, Trash2 } from "lucide-react";
+import { Download, FileText, FolderPlus, LayoutGrid, List, MessageSquare, MoreHorizontal, Pencil, RefreshCw, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { NativeSelect } from "@/components/shared/native-select";
@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState, ErrorState } from "@/components/shared/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,8 +21,11 @@ import { useCollections } from "@/features/collections/hooks";
 import { api, downloadFromApi } from "@/lib/api";
 import { formatBytes, formatDate, formatDateTime } from "@/lib/format";
 import { qk } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import type { DocumentOut, JobOut, Page } from "@/types/api";
 
+import { BulkBar } from "./bulk-actions";
+import { FileTile } from "./file-tile";
 import { AssignCollectionsDialog, DeleteDocumentDialog, RenameDocumentDialog, useReprocess } from "./document-dialogs";
 import { useDocuments } from "./hooks";
 import { StatusBadge } from "./status-badge";
@@ -56,26 +60,82 @@ export function Pager({ page, pageSize, total, onPage }: { page: number; pageSiz
   );
 }
 
-function DocRow({ doc, onRename, onDelete, onAssign }: { doc: DocumentOut; onRename: () => void; onDelete: () => void; onAssign: () => void }) {
+interface RowActions {
+  onRename: () => void;
+  onDelete: () => void;
+  onAssign: () => void;
+}
+
+function DocActionsMenu({ doc, onRename, onDelete, onAssign }: { doc: DocumentOut } & RowActions) {
   const reprocess = useReprocess();
   const canReprocess = doc.status === "ready" || doc.status === "failed";
   return (
-    <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center" data-testid="doc-row" data-status={doc.status}>
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Actions for ${doc.title}`} data-testid="doc-actions" />}>
+        <MoreHorizontal aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem render={<Link href={`/documents/${doc.id}`} />}>
+          <FileText aria-hidden /> Open
+        </DropdownMenuItem>
+        {doc.status === "ready" && (
+          <DropdownMenuItem render={<Link href={`/chat?doc=${doc.id}`} />}>
+            <MessageSquare aria-hidden /> Chat with document
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={onRename} data-testid="action-rename">
+          <Pencil aria-hidden /> Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onAssign}>
+          <FolderPlus aria-hidden /> Collections…
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!canReprocess} onClick={() => reprocess.mutate(doc.id)}>
+          <RefreshCw aria-hidden /> Reprocess
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => downloadFromApi(`/documents/${doc.id}/file?download=true`, doc.original_filename).catch(() => toast.error("Download failed"))}>
+          <Download aria-hidden /> Download
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onClick={onDelete} data-testid="action-delete">
+          <Trash2 aria-hidden /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function DocMeta({ doc }: { doc: DocumentOut }) {
+  return (
+    <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+      <span>{formatBytes(doc.size_bytes)}</span>
+      <span>{formatDate(doc.created_at)}</span>
+      {doc.page_count != null && <span>{doc.page_count} pages</span>}
+      {doc.status === "ready" && <span>{doc.chunk_count} {doc.chunk_count === 1 ? "chunk" : "chunks"}</span>}
+    </p>
+  );
+}
+
+function RetryButton({ doc }: { doc: DocumentOut }) {
+  const reprocess = useReprocess();
+  if (doc.status !== "failed") return null;
+  return (
+    <Button variant="outline" size="sm" onClick={() => reprocess.mutate(doc.id)} disabled={reprocess.isPending} data-testid="retry-doc">
+      <RefreshCw aria-hidden /> Retry
+    </Button>
+  );
+}
+
+function DocRow({ doc, selected, onSelect, ...actions }: { doc: DocumentOut; selected: boolean; onSelect: (v: boolean) => void } & RowActions) {
+  return (
+    <div className={cn("flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center", selected && "border-primary/60 bg-primary/5")} data-testid="doc-row" data-status={doc.status} data-view="list">
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <FileText className="size-5 text-muted-foreground" aria-hidden />
-        </div>
+        <Checkbox checked={selected} onCheckedChange={(v) => onSelect(Boolean(v))} aria-label={`Select ${doc.title}`} className="mt-3" data-testid="doc-select" />
+        <FileTile ext={doc.file_ext} />
         <div className="min-w-0">
           <Link href={`/documents/${doc.id}`} className="block truncate font-medium hover:text-primary" data-testid="doc-title">
             {doc.title}
           </Link>
-          <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-            <span>{doc.file_ext.replace(".", "").toUpperCase()}</span>
-            <span>{formatBytes(doc.size_bytes)}</span>
-            <span>{formatDate(doc.created_at)}</span>
-            {doc.page_count != null && <span>{doc.page_count} pages</span>}
-            {doc.status === "ready" && <span>{doc.chunk_count} chunks</span>}
-          </p>
+          <DocMeta doc={doc} />
           {doc.status === "failed" && doc.error_message && (
             <p className="mt-1.5 text-sm text-destructive" role="alert" data-testid="doc-error">
               {doc.error_message}
@@ -85,46 +145,49 @@ function DocRow({ doc, onRename, onDelete, onAssign }: { doc: DocumentOut; onRen
       </div>
       <div className="flex items-center gap-2 sm:justify-end">
         <StatusBadge doc={doc} />
-        {doc.status === "failed" && (
-          <Button variant="outline" size="sm" onClick={() => reprocess.mutate(doc.id)} disabled={reprocess.isPending} data-testid="retry-doc">
-            <RefreshCw aria-hidden /> Retry
-          </Button>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label={`Actions for ${doc.title}`} data-testid="doc-actions" />}>
-            <MoreHorizontal aria-hidden />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem render={<Link href={`/documents/${doc.id}`} />}>
-              <FileText aria-hidden /> Open
-            </DropdownMenuItem>
-            {doc.status === "ready" && (
-              <DropdownMenuItem render={<Link href={`/chat?doc=${doc.id}`} />}>
-                <MessageSquare aria-hidden /> Chat with document
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={onRename} data-testid="action-rename">
-              <Pencil aria-hidden /> Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onAssign}>
-              <FolderPlus aria-hidden /> Collections…
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!canReprocess} onClick={() => reprocess.mutate(doc.id)}>
-              <RefreshCw aria-hidden /> Reprocess
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => downloadFromApi(`/documents/${doc.id}/file?download=true`, doc.original_filename).catch(() => toast.error("Download failed"))}>
-              <Download aria-hidden /> Download
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={onDelete} data-testid="action-delete">
-              <Trash2 aria-hidden /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RetryButton doc={doc} />
+        <DocActionsMenu doc={doc} {...actions} />
       </div>
     </div>
   );
 }
+
+function DocCard({ doc, selected, onSelect, ...actions }: { doc: DocumentOut; selected: boolean; onSelect: (v: boolean) => void } & RowActions) {
+  return (
+    <div className={cn("group relative flex flex-col gap-3 rounded-xl border p-4 transition-shadow hover:shadow-sm", selected && "border-primary/60 bg-primary/5")} data-testid="doc-row" data-status={doc.status} data-view="grid">
+      <div className="flex items-start justify-between">
+        <FileTile ext={doc.file_ext} size="lg" />
+        <div className="-mt-1 -mr-1 flex items-center">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={(v) => onSelect(Boolean(v))}
+            aria-label={`Select ${doc.title}`}
+            className={cn("mr-1 transition-opacity", !selected && "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100")}
+            data-testid="doc-select"
+          />
+          <DocActionsMenu doc={doc} {...actions} />
+        </div>
+      </div>
+      <div className="min-w-0 flex-1">
+        <Link href={`/documents/${doc.id}`} className="line-clamp-2 font-medium leading-snug break-words hover:text-primary" data-testid="doc-title">
+          {doc.title}
+        </Link>
+        <DocMeta doc={doc} />
+        {doc.status === "failed" && doc.error_message && (
+          <p className="mt-1.5 line-clamp-3 text-sm text-destructive" role="alert" data-testid="doc-error">
+            {doc.error_message}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <StatusBadge doc={doc} />
+        <RetryButton doc={doc} />
+      </div>
+    </div>
+  );
+}
+
+const VIEW_KEY = "ara.docs.view";
 
 function Library() {
   const [q, setQ] = useState("");
@@ -132,16 +195,31 @@ function Library() {
   const [sort, setSort] = useState("newest");
   const [collection, setCollection] = useState("");
   const [page, setPage] = useState(1);
+  const [view, setView] = useState<"list" | "grid">("list");
+  const [selected, setSelected] = useState<string[]>([]);
   const debouncedQ = useDebounced(q);
   const { data: collections } = useCollections();
   const { data, error, isLoading, refetch } = useDocuments({ page, q: debouncedQ || undefined, status: status || undefined, sort, collection_id: collection || undefined });
   const [rename, setRename] = useState<DocumentOut | null>(null);
   const [del, setDel] = useState<DocumentOut | null>(null);
   const [assign, setAssign] = useState<DocumentOut | null>(null);
-  const reset = (fn: () => void) => () => {
+
+  useEffect(() => {
+    setView(window.localStorage.getItem(VIEW_KEY) === "grid" ? "grid" : "list");
+  }, []);
+  const chooseView = (v: "list" | "grid") => {
+    setView(v);
+    window.localStorage.setItem(VIEW_KEY, v);
+  };
+  const changeFilter = (fn: () => void) => () => {
     fn();
     setPage(1);
+    setSelected([]);
   };
+  const pageIds = useMemo(() => data?.items.map((d) => d.id) ?? [], [data]);
+  const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.includes(id));
+  const toggle = (id: string, v: boolean) => setSelected((s) => (v ? [...new Set([...s, id])] : s.filter((x) => x !== id)));
+  const filtered = Boolean(q || status || collection);
 
   return (
     <div className="space-y-4">
@@ -157,18 +235,19 @@ function Library() {
             onChange={(e) => {
               setQ(e.target.value);
               setPage(1);
+              setSelected([]);
             }}
             data-testid="doc-search"
           />
         </div>
-        <NativeSelect aria-label="Filter by status" value={status} onChange={(e) => reset(() => setStatus(e.target.value))()}>
+        <NativeSelect aria-label="Filter by status" value={status} onChange={(e) => changeFilter(() => setStatus(e.target.value))()}>
           <option value="">All statuses</option>
           <option value="ready">Ready</option>
           <option value="processing">Processing</option>
           <option value="queued">Queued</option>
           <option value="failed">Failed</option>
         </NativeSelect>
-        <NativeSelect aria-label="Filter by collection" value={collection} onChange={(e) => reset(() => setCollection(e.target.value))()}>
+        <NativeSelect aria-label="Filter by collection" value={collection} onChange={(e) => changeFilter(() => setCollection(e.target.value))()}>
           <option value="">All collections</option>
           {collections?.map((c) => (
             <option key={c.id} value={c.id}>
@@ -176,36 +255,46 @@ function Library() {
             </option>
           ))}
         </NativeSelect>
-        <NativeSelect aria-label="Sort documents" value={sort} onChange={(e) => reset(() => setSort(e.target.value))()}>
+        <NativeSelect aria-label="Sort documents" value={sort} onChange={(e) => changeFilter(() => setSort(e.target.value))()}>
           <option value="newest">Newest</option>
           <option value="oldest">Oldest</option>
           <option value="title">Title A–Z</option>
           <option value="size">Largest</option>
           <option value="popular">Most cited</option>
         </NativeSelect>
+        <div role="group" aria-label="Layout" className="inline-flex rounded-lg border p-0.5">
+          <Button variant={view === "list" ? "secondary" : "ghost"} size="icon-sm" aria-label="List view" aria-pressed={view === "list"} onClick={() => chooseView("list")} data-testid="view-list">
+            <List aria-hidden />
+          </Button>
+          <Button variant={view === "grid" ? "secondary" : "ghost"} size="icon-sm" aria-label="Grid view" aria-pressed={view === "grid"} onClick={() => chooseView("grid")} data-testid="view-grid">
+            <LayoutGrid aria-hidden />
+          </Button>
+        </div>
       </div>
+      {selected.length > 0 && <BulkBar ids={selected} onClear={() => setSelected([])} />}
       {error ? (
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : isLoading ? (
-        <div className="space-y-3" aria-busy="true">
+        <div className={cn("gap-3", view === "grid" ? "grid sm:grid-cols-2 xl:grid-cols-3" : "space-y-3")} aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
+            <Skeleton key={i} className={view === "grid" ? "h-44 rounded-xl" : "h-20 rounded-xl"} />
           ))}
         </div>
       ) : data && data.items.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title={q || status || collection ? "No documents match your filters" : "No documents yet"}
-          description={q || status || collection ? "Try clearing the search or filters." : "Drop files above to build your research library."}
-        />
+        <EmptyState icon={FileText} title={filtered ? "No documents match your filters" : "No documents yet"} description={filtered ? "Try clearing the search or filters." : "Drop files above to build your research library."} />
       ) : (
         <>
-          <div className="space-y-3" data-testid="doc-list">
-            {data?.items.map((d) => (
-              <DocRow key={d.id} doc={d} onRename={() => setRename(d)} onDelete={() => setDel(d)} onAssign={() => setAssign(d)} />
-            ))}
+          <label className="flex w-fit items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox checked={allSelected} onCheckedChange={(v) => setSelected(v ? [...new Set([...selected, ...pageIds])] : selected.filter((id) => !pageIds.includes(id)))} aria-label="Select all documents on this page" data-testid="select-page" />
+            Select all on this page
+          </label>
+          <div className={cn(view === "grid" ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-3" : "space-y-3")} data-testid="doc-list" data-view={view}>
+            {data?.items.map((d) => {
+              const props = { doc: d, selected: selected.includes(d.id), onSelect: (v: boolean) => toggle(d.id, v), onRename: () => setRename(d), onDelete: () => setDel(d), onAssign: () => setAssign(d) };
+              return view === "grid" ? <DocCard key={d.id} {...props} /> : <DocRow key={d.id} {...props} />;
+            })}
           </div>
-          {data && <Pager page={page} pageSize={data.page_size} total={data.total} onPage={setPage} />}
+          {data && <Pager page={page} pageSize={data.page_size} total={data.total} onPage={(p) => (setPage(p), setSelected([]))} />}
         </>
       )}
       <RenameDocumentDialog doc={rename} onClose={() => setRename(null)} />

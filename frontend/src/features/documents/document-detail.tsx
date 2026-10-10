@@ -22,6 +22,7 @@ import type { ChunkOut, TaskName, TaskResponse } from "@/types/api";
 
 import { DeleteDocumentDialog, RenameDocumentDialog, useReprocess } from "./document-dialogs";
 import { useDocument } from "./hooks";
+import { FileTile } from "./file-tile";
 import { StatusBadge } from "./status-badge";
 
 const PAGE = 50;
@@ -141,6 +142,8 @@ export function DocumentDetail({ id }: { id: string }) {
   return (
     <PageContainer wide>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <FileTile ext={doc.file_ext} size="lg" />
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-semibold tracking-tight" data-testid="doc-detail-title">{doc.title}</h1>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
@@ -152,6 +155,7 @@ export function DocumentDetail({ id }: { id: string }) {
             <StatusBadge doc={doc} />
           </p>
           {doc.status === "failed" && doc.error_message && <p role="alert" className="mt-2 text-sm text-destructive">{doc.error_message}</p>}
+        </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href={`/chat?doc=${doc.id}`} aria-disabled={!ready} className={cn(buttonVariants(), !ready && "pointer-events-none opacity-50")} data-testid="chat-with-doc">

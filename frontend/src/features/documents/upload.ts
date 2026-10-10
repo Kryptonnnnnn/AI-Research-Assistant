@@ -1,4 +1,4 @@
-import { parseError } from "@/lib/api";
+import { ApiError, parseError } from "@/lib/api";
 import { checkUploadFile, MAX_FILES } from "@/lib/validation";
 import type { UploadItem, UploadResponse } from "@/types/api";
 
@@ -28,4 +28,16 @@ export async function uploadFiles(files: File[], fetchImpl: typeof fetch = fetch
     batch.forEach(({ index }, k) => (results[index] = body!.items[k]));
   }
   return results;
+}
+
+/** User-facing message for a failed upload request (whole-batch errors such as the storage quota). */
+export function friendlyUploadError(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.code === "storage_quota_exceeded" || e.status === 507) {
+      return "Your storage quota is full, so nothing was uploaded. Delete some documents (Documents → select → Delete) and try again.";
+    }
+    if (e.code === "storage_unavailable") return "File storage is temporarily unavailable. Please try again in a moment.";
+    return e.message;
+  }
+  return "Upload failed. Please try again.";
 }

@@ -18,11 +18,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { useEvidence, viewerHref } from "@/features/chat/evidence";
 import { ALL_SCOPE, ScopePicker, type Scope } from "@/features/chat/scope-picker";
+import { Callout } from "@/components/shared/callout";
+import { useSettings } from "@/features/settings/hooks";
 import { api, ApiError } from "@/lib/api";
+import { retrievalModeLabel } from "@/lib/format";
 import type { SearchResponse } from "@/types/api";
 
 export function SearchView() {
   const evidence = useEvidence();
+  const { data: settings } = useSettings();
+  const mode = settings?.retrieval_mode;
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>(ALL_SCOPE);
   const [advanced, setAdvanced] = useState(false);
@@ -38,7 +43,16 @@ export function SearchView() {
   });
   return (
     <PageContainer>
-      <PageHeader title="Semantic search" description="Find relevant passages by meaning — no exact keywords needed. Results are scoped to your own documents." />
+      <PageHeader
+        title="Search"
+        description={mode === "lexical" ? "Find relevant passages in your own documents using keyword-like matching." : "Find relevant passages by meaning — no exact keywords needed. Results are scoped to your own documents."}
+        actions={retrievalModeLabel(mode) && <span className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground" data-testid="search-mode">{retrievalModeLabel(mode)}</span>}
+      />
+      {mode === "lexical" && (
+        <Callout tone="warning" title="Semantic search is not active on this server" className="mb-4" testId="search-lexical-note">
+          Results come from lightweight word-overlap matching, so paraphrases and synonyms may not be found.
+        </Callout>
+      )}
       <form
         className="space-y-3"
         onSubmit={(e) => {
@@ -93,7 +107,13 @@ export function SearchView() {
             <>
               <p className="mb-3 text-sm text-muted-foreground" data-testid="search-summary">
                 {m.data.results.length} passage{m.data.results.length > 1 ? "s" : ""} · {m.data.candidates} candidates · {m.data.latency_ms.toFixed(0)} ms
+                {retrievalModeLabel(m.data.retrieval_mode) ? ` · ${retrievalModeLabel(m.data.retrieval_mode)}` : ""}
               </p>
+              {!!m.data.stale_documents && m.data.stale_documents > 0 && (
+                <Callout tone="warning" title={`${m.data.stale_documents} document${m.data.stale_documents > 1 ? "s are" : " is"} still being re-indexed`} className="mb-3" testId="search-stale-note">
+                  Results may be incomplete until indexing finishes.
+                </Callout>
+              )}
               <ul className="space-y-3" data-testid="search-results">
                 {m.data.results.map((r) => (
                   <li key={r.chunk_id ?? r.label}>
@@ -131,7 +151,7 @@ export function SearchView() {
             </>
           )
         ) : (
-          <EmptyState icon={SearchIcon} title="Search by meaning" description="Type a question or topic. We rank passages from your documents using embeddings plus keyword matching." />
+          <EmptyState icon={SearchIcon} title="Search by meaning" description={mode === "lexical" ? "Type a question or topic. Passages are ranked by word overlap." : "Type a question or topic. We rank passages from your documents using embeddings plus keyword matching."} />
         )}
       </div>
     </PageContainer>

@@ -36,7 +36,7 @@ export function SourcesList({ sources, title = "Sources" }: { sources: SourceOut
         <li key={`${s.label}-${s.chunk_id}`}>
           <button
             type="button"
-            onClick={() => open(s)}
+            onClick={() => open(s, sources)}
             className="flex w-full items-start gap-2 rounded-md p-1.5 text-left text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           >
             <Badge variant={s.cited ? "default" : "outline"}>{s.label}</Badge>

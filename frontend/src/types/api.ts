@@ -89,6 +89,8 @@ export interface CollectionOut {
   created_at: string;
 }
 
+export type RetrievalMode = "semantic" | "lexical";
+
 // ---- chat ----
 export type Mode = "qa" | "research" | "synthesis";
 export interface SourceOut {
@@ -110,6 +112,8 @@ export interface SourceOut {
 export interface RetrievalMeta {
   insufficient_evidence?: boolean;
   citation_check?: "ok" | "no_citations";
+  retrieval_mode?: RetrievalMode;
+  stale_documents?: number;
   retrieved?: number;
   candidates?: number;
   top_k?: number;
@@ -168,8 +172,10 @@ export interface SearchResponse {
   results: SourceOut[];
   candidates: number;
   latency_ms: number;
+  stale_documents?: number;
+  retrieval_mode?: RetrievalMode;
 }
-export type TaskName = "summarize" | "questions" | "findings" | "compare";
+export type TaskName = "summarize" | "questions" | "findings" | "compare" | "conflicts";
 export interface TaskRequest {
   document_ids: Uuid[];
   focus?: string | null;
@@ -207,6 +213,16 @@ export interface ProviderInfo {
   label: string;
   configured: boolean;
 }
+export type LlmStatusKind = "ok" | "missing_model" | "missing_api_key" | "unknown_provider";
+export interface LlmStatus {
+  status: LlmStatusKind;
+  hint: string;
+}
+export interface ModelsOut {
+  provider: string;
+  models: string[];
+  error: string | null;
+}
 export interface SettingsOut {
   theme: "light" | "dark" | "system";
   llm_provider: string;
@@ -222,6 +238,9 @@ export interface SettingsOut {
   chunk_overlap_tokens: number;
   providers: ProviderInfo[];
   overrides: Record<string, boolean>;
+  retrieval_mode?: RetrievalMode;
+  embedding_signature?: string;
+  llm_status?: LlmStatus;
 }
 export interface SettingsUpdate {
   theme?: "light" | "dark" | "system";
@@ -252,6 +271,31 @@ export interface Dashboard {
   queries_by_kind: Record<string, number>;
   avg_query_latency_ms: number | null;
   recent_activity: Array<{ type: "document" | "conversation"; id: Uuid; title: string; detail: string; at: string }>;
+  recent_documents?: DashboardDocument[];
+  active_jobs?: DashboardJob[];
+  index_health?: { current_signature: string; stale_documents: number };
+}
+export interface DashboardDocument {
+  id: Uuid;
+  title: string;
+  status: DocStatus;
+  progress: number;
+  stage: string;
+  file_ext: string;
+  size_bytes: number;
+  page_count: number | null;
+  created_at: string;
+  error_message?: string | null;
+}
+export interface DashboardJob {
+  id: Uuid;
+  document_id: Uuid;
+  document_title: string;
+  status: "queued" | "running";
+  stage: string;
+  progress: number;
+  attempts: number;
+  max_attempts: number;
 }
 export interface Readiness {
   status: "ready" | "degraded";

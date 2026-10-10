@@ -20,7 +20,7 @@ import type { ConversationOut, Page } from "@/types/api";
 
 const SIZE = 30;
 
-export function ConversationList({ activeId, onNavigate, onDeleted }: { activeId: string | null; onNavigate?: () => void; onDeleted?: (id: string) => void }) {
+export function ConversationList({ activeId, onNavigate, onNew, onDeleted }: { activeId: string | null; onNavigate?: () => void; onNew?: () => void; onDeleted?: (id: string) => void }) {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [dq, setDq] = useState("");
@@ -65,7 +65,15 @@ export function ConversationList({ activeId, onNavigate, onDeleted }: { activeId
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <Link href="/chat" onClick={onNavigate} className={cn(buttonVariants(), "w-full")} data-testid="new-chat">
+      <Link
+        href="/chat"
+        onClick={() => {
+          onNew?.();
+          onNavigate?.();
+        }}
+        className={cn(buttonVariants(), "w-full")}
+        data-testid="new-chat"
+      >
         <Plus aria-hidden /> New conversation
       </Link>
       <div className="relative">

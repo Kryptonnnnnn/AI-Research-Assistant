@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { GitCompare, ListChecks, MessageCircleQuestion, Sparkles } from "lucide-react";
+import { GitCompare, ListChecks, MessageCircleQuestion, Scale, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -25,6 +25,7 @@ const TOOLS: Array<{ name: TaskName; label: string; icon: React.ElementType; blu
   { name: "questions", label: "Questions", icon: MessageCircleQuestion, blurb: "Generate research questions a document raises or leaves open.", multi: false },
   { name: "findings", label: "Key findings", icon: ListChecks, blurb: "Extract research question, methods, findings, results, limitations and conclusions.", multi: false },
   { name: "compare", label: "Compare", icon: GitCompare, blurb: "Compare 2 or more documents: agreements, contradictions and differences, with evidence.", multi: true },
+  { name: "conflicts", label: "Conflicts", icon: Scale, blurb: "Find claims where documents disagree. Each conflict cites the passage on both sides so you can judge it yourself.", multi: true },
 ];
 
 function Tool({ tool }: { tool: (typeof TOOLS)[number] }) {

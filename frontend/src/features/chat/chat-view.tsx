@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, List, SendHorizontal, Sparkles, Square } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -13,6 +13,10 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { SaveNoteDialog } from "@/features/notes/save-note-dialog";
+import { ChatErrorCard } from "./error-cards";
+import { DockedViewer, ReopenViewerButton, useEvidence, useRegisterDock } from "./evidence";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { cn } from "@/lib/utils";
 import { api, ApiError, downloadFromApi, postJson } from "@/lib/api";
 import { qk } from "@/lib/query-keys";
 import type { ConversationDetail, FollowUps, MessageOut, Mode } from "@/types/api";
@@ -25,6 +29,12 @@ import { useChatStream } from "./use-chat-stream";
 const STARTERS = ["Summarize the key findings across my documents.", "What methods are used, and what are their limitations?", "Where do the sources disagree?"];
 
 export function ChatView({ conversationId }: { conversationId: string | null }) {
+  useRegisterDock();
+  const { docked, isOpen: viewerOpen, source: viewerSource } = useEvidence();
+  const lgUp = useMediaQuery("(min-width: 1024px)");
+  const roomy = useMediaQuery("(min-width: 1536px)");
+  // When the viewer is docked, the conversation list yields space on mid-size screens (it stays reachable via "Chats").
+  const listInline = lgUp && !(docked && viewerOpen && viewerSource && !roomy);
   const qc = useQueryClient();
   const sp = useSearchParams();
   const router = useRouter();
@@ -63,6 +73,34 @@ export function ChatView({ conversationId }: { conversationId: string | null }) 
 
   const { state, send, regenerate, stop, reset } = useChatStream();
 
+  // After the first answer the URL is rewritten with history.replaceState, which leaves Next's route params stale (so the
+  // page's `key` never changes). Follow the real pathname instead: "New conversation" and back/forward must reset the view.
+  const pathname = usePathname();
+  const routeId = pathname.startsWith("/chat/") ? pathname.slice("/chat/".length).split("/")[0] || null : null;
+  const lastRoute = useRef(routeId);
+  const ownUrlId = useRef<string | null>(null); // conversation id we just wrote into the URL ourselves
+  const resetView = useCallback(
+    (nextId: string | null) => {
+      stop();
+      reset();
+      setFollowups([]);
+      setSaveMsg(null);
+      stick.current = true;
+      scopeLoadedFor.current = null;
+      setActiveId(nextId);
+      if (!nextId) setScope(ALL_SCOPE);
+    },
+    [stop, reset],
+  );
+  useEffect(() => {
+    if (lastRoute.current === routeId) return;
+    lastRoute.current = routeId;
+    if (routeId !== null && (routeId === ownUrlId.current || routeId === activeId)) return; // our own URL sync, not a navigation
+    if (routeId === null && activeId === null) return; // already showing a new conversation (reset synchronously)
+    ownUrlId.current = null;
+    resetView(routeId); // the draft text is kept on purpose
+  }, [routeId, activeId, resetView]);
+
   const refreshLists = useCallback(async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ["conversations"] }),
@@ -84,6 +122,7 @@ export function ChatView({ conversationId }: { conversationId: string | null }) 
       if (id !== activeId) {
         setActiveId(id);
         scopeLoadedFor.current = id;
+        ownUrlId.current = id;
         window.history.replaceState(null, "", `/chat/${id}`);
       }
       await refreshLists();
@@ -149,24 +188,27 @@ export function ChatView({ conversationId }: { conversationId: string | null }) 
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="hidden w-72 shrink-0 border-r p-3 lg:block" aria-label="Conversations">
-        <ConversationList activeId={activeId} onDeleted={(id) => id === activeId && router.push("/chat")} />
-      </aside>
+      {listInline && (
+        <aside className="w-72 shrink-0 border-r p-3" aria-label="Conversations">
+          <ConversationList activeId={activeId} onNew={() => resetView(null)} onDeleted={(id) => id === activeId && router.push("/chat")} />
+        </aside>
+      )}
       <section className="flex min-w-0 flex-1 flex-col" aria-label="Conversation">
-        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2 md:px-4">
-          <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setListOpen(true)} data-testid="open-conversations">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b px-3 py-2 md:px-4">
+          <Button variant="outline" size="sm" className={cn(listInline && "hidden")} onClick={() => setListOpen(true)} data-testid="open-conversations">
             <List aria-hidden /> Chats
           </Button>
-          <h1 className="min-w-0 max-w-[40%] truncate text-sm font-semibold" data-testid="conversation-heading">
+          <h1 className="min-w-0 max-w-[60%] flex-1 truncate text-sm font-semibold sm:max-w-[40%] sm:flex-none" data-testid="conversation-heading">
             {title}
           </h1>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="-mx-1 flex w-full items-center gap-2 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:ml-auto sm:w-auto sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0">
             <ScopePicker scope={scope} onChange={changeScope} />
             <NativeSelect aria-label="Answer mode" value={mode} onChange={(e) => setMode(e.target.value as Mode)} data-testid="mode-select">
               <option value="qa">{"Q&A"}</option>
               <option value="research">Research brief</option>
               <option value="synthesis">Multi-document synthesis</option>
             </NativeSelect>
+            <ReopenViewerButton />
             {activeId && (
               <Button variant="outline" size="sm" onClick={() => downloadFromApi(`/conversations/${activeId}/export`, "conversation.md").catch(() => toast.error("Export failed"))} data-testid="export-conversation">
                 <Download aria-hidden /> Export
@@ -214,22 +256,16 @@ export function ChatView({ conversationId }: { conversationId: string | null }) 
             {streaming && <StreamingBubble text={state.text} sources={state.sources} waiting={!state.sources.length} />}
             {finalShown && <AssistantBubble message={finalShown} isLast disabled onRegenerate={onRegenerate} onSave={setSaveMsg} />}
             {error && (
-              <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm" data-testid="stream-error">
-                <span className="flex-1 text-destructive">{error.message}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const req = lastRequest.current;
-                    reset();
-                    if (error.code === "network_error" && activeId) onRegenerate();
-                    else if (req) submit(req.question);
-                  }}
-                  data-testid="retry-stream"
-                >
-                  Retry
-                </Button>
-              </div>
+              <ChatErrorCard
+                code={error.code}
+                message={error.message}
+                onRetry={() => {
+                  const req = lastRequest.current;
+                  reset();
+                  if (error.code === "network_error" && activeId) onRegenerate();
+                  else if (req) submit(req.question);
+                }}
+              />
             )}
             {followups.length > 0 && !streaming && (
               <div className="flex flex-wrap gap-2" data-testid="followups" aria-label="Suggested follow-up questions">
@@ -290,11 +326,12 @@ export function ChatView({ conversationId }: { conversationId: string | null }) 
           </div>
         </form>
       </section>
+      <DockedViewer />
 
       <Sheet open={listOpen} onOpenChange={setListOpen}>
         <SheetContent side="left" className="w-80 max-w-[90vw] p-3 pt-12">
           <SheetTitle className="sr-only">Conversations</SheetTitle>
-          <ConversationList activeId={activeId} onNavigate={() => setListOpen(false)} onDeleted={(id) => id === activeId && router.push("/chat")} />
+          <ConversationList activeId={activeId} onNew={() => resetView(null)} onNavigate={() => setListOpen(false)} onDeleted={(id) => id === activeId && router.push("/chat")} />
         </SheetContent>
       </Sheet>
       <SaveNoteDialog open={!!saveMsg} onOpenChange={(o) => !o && setSaveMsg(null)} defaultTitle={conv.data?.title ?? "Research note"} content={saveMsg?.content ?? ""} sourceMessageId={saveMsg?.id} />

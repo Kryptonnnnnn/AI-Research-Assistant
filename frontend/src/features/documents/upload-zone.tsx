@@ -8,12 +8,11 @@ import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ALLOWED_EXTENSIONS, MAX_UPLOAD_MB } from "@/lib/validation";
 import type { UploadItem } from "@/types/api";
 
-import { uploadFiles } from "./upload";
+import { friendlyUploadError, uploadFiles } from "./upload";
 
 export function UploadZone() {
   const qc = useQueryClient();
@@ -33,7 +32,7 @@ export function UploadZone() {
         await qc.invalidateQueries({ queryKey: ["documents"] });
         qc.invalidateQueries({ queryKey: ["dashboard"] });
       } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : "Upload failed. Please try again.");
+        toast.error(friendlyUploadError(e));
       } finally {
         setUploading(false);
       }
@@ -55,17 +54,19 @@ export function UploadZone() {
         {...getRootProps()}
         data-testid="upload-dropzone"
         className={cn(
-          "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors",
+          "flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-5 py-4 text-center transition-colors sm:flex-row sm:text-left",
           isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30",
         )}
       >
         <input {...getInputProps({ "data-testid": "file-input", "aria-label": "Choose files to upload" })} accept={ALLOWED_EXTENSIONS.join(",")} />
-        {uploading ? <Loader2 className="mb-2 size-8 animate-spin text-primary" aria-hidden /> : <UploadCloud className="mb-2 size-8 text-muted-foreground" aria-hidden />}
-        <p className="font-medium">{uploading ? "Uploading…" : isDragActive ? "Drop to upload" : "Drag & drop files here"}</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          PDF, DOCX, TXT or Markdown · up to {MAX_UPLOAD_MB} MB each · multiple files supported
-        </p>
-        <Button variant="outline" className="mt-4" onClick={open} disabled={uploading} data-testid="browse-files">
+        {uploading ? <Loader2 className="size-8 shrink-0 animate-spin text-primary" aria-hidden /> : <UploadCloud className="size-8 shrink-0 text-muted-foreground" aria-hidden />}
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{uploading ? "Uploading…" : isDragActive ? "Drop to upload" : "Drag & drop files here"}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            PDF, DOCX, TXT or Markdown · up to {MAX_UPLOAD_MB} MB each · multiple files supported
+          </p>
+        </div>
+        <Button variant="outline" onClick={open} disabled={uploading} data-testid="browse-files">
           Browse files
         </Button>
       </div>

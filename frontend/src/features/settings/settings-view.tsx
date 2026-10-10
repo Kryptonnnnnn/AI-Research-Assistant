@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { Callout } from "@/components/shared/callout";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { NativeSelect } from "@/components/shared/native-select";
 import { PageContainer } from "@/components/shared/page-container";
@@ -24,10 +25,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMe } from "@/features/auth/hooks";
 import { JobsLog } from "@/features/documents/documents-view";
 import { api, ApiError, buildUrl } from "@/lib/api";
+import { formatBytes, retrievalModeLabel } from "@/lib/format";
 import { qk } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { validatePassword } from "@/lib/validation";
-import type { ProviderTestOut, Readiness, SettingsOut } from "@/types/api";
+import type { ModelsOut, ProviderTestOut, Readiness, SettingsOut } from "@/types/api";
 
 import { useSettings, useUpdateSettings } from "./hooks";
 
@@ -121,6 +123,18 @@ function ProfileTab() {
   );
 }
 
+function RetrievalModeNote({ mode }: { mode: "semantic" | "lexical" }) {
+  return mode === "semantic" ? (
+    <Callout tone="info" title="Semantic vector search is active" testId="retrieval-mode-note">
+      Passages are ranked by meaning using embeddings (plus keyword matching when hybrid search is on).
+    </Callout>
+  ) : (
+    <Callout tone="warning" title="Lexical (keyword-like) matching — not semantic" testId="retrieval-mode-note">
+      This server uses the lightweight hashing embedder, which matches overlapping words rather than meaning, so paraphrases may be missed. Real semantic search needs an embedding model on the server (see the deployment guide).
+    </Callout>
+  );
+}
+
 function ProviderTab({ s }: { s: SettingsOut }) {
   const update = useUpdateSettings();
   const [provider, setProvider] = useState(s.llm_provider);
@@ -136,6 +150,15 @@ function ProviderTab({ s }: { s: SettingsOut }) {
     onError: (e) => toast.error(errMsg(e)),
   });
   const info = s.providers.find((p) => p.id === provider);
+  const models = useQuery({
+    queryKey: ["models", provider],
+    enabled: provider === "groq" || provider === "ollama",
+    queryFn: () => api<ModelsOut>("/settings/models", { query: { provider } }),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const modelIds = models.data?.models ?? [];
+  const modelUnknown = !!model.trim() && modelIds.length > 0 && !modelIds.includes(model.trim());
   return (
     <Card>
       <CardHeader>
@@ -145,6 +168,11 @@ function ProviderTab({ s }: { s: SettingsOut }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {s.llm_status && s.llm_status.status !== "ok" && (
+          <Callout tone="error" title={s.llm_status.status === "missing_model" ? "No LLM model configured" : s.llm_status.status === "missing_api_key" ? "No API key configured on the server" : "Unknown provider"} testId="llm-status-callout">
+            {s.llm_status.hint}
+          </Callout>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="provider">Provider</Label>
@@ -160,8 +188,43 @@ function ProviderTab({ s }: { s: SettingsOut }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="model">Model identifier</Label>
-            <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder={provider === "ollama" ? "a model from `ollama list`" : provider === "groq" ? "a model id from console.groq.com" : "mock-1"} data-testid="model-input" />
-            <p className="text-xs text-muted-foreground">Model names change over time, so none is built in. Enter one your provider currently offers.</p>
+            <div className="flex gap-2">
+              <Input
+                id="model"
+                list="model-options"
+                autoComplete="off"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={provider === "ollama" ? "a model from `ollama list`" : provider === "groq" ? "choose or type a model id" : "mock-1"}
+                data-testid="model-input"
+              />
+              <datalist id="model-options" data-testid="model-options">
+                {modelIds.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+              {(provider === "groq" || provider === "ollama") && (
+                <Button type="button" variant="outline" size="icon" aria-label="Refresh model list" onClick={() => models.refetch()} disabled={models.isFetching} data-testid="refresh-models">
+                  <RefreshCw className={cn(models.isFetching && "animate-spin")} aria-hidden />
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground" data-testid="models-hint">
+              {models.isFetching
+                ? "Loading the provider's model list…"
+                : models.data?.error
+                  ? `Couldn't list models: ${models.data.error}. You can still type a model id.`
+                  : models.error
+                    ? "Couldn't load the model list. You can still type a model id."
+                    : modelIds.length > 0
+                      ? `${modelIds.length} models reported by ${provider}. Pick one or type your own.`
+                      : "Model names change over time, so none is built in. Enter one your provider currently offers."}
+            </p>
+            {modelUnknown && (
+              <p className="text-xs text-amber-700 dark:text-amber-400" data-testid="model-unknown">
+                This id isn&apos;t in the provider&apos;s current list — use Test connection to confirm it works.
+              </p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -225,6 +288,7 @@ function RetrievalTab({ s }: { s: SettingsOut }) {
         <CardDescription>Controls how passages are selected before the model writes an answer.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {s.retrieval_mode && <RetrievalModeNote mode={s.retrieval_mode} />}
         <div className="space-y-2">
           <Label htmlFor="topk">Passages per answer (top-k): <span data-testid="topk-value">{topK}</span></Label>
           <Slider id="topk" min={1} max={30} step={1} value={[topK]} onValueChange={(v) => setTopK(one(v))} aria-label="Top k" data-testid="topk-slider" />
@@ -323,11 +387,13 @@ function EmbeddingsTab({ s }: { s: SettingsOut }) {
     onError: (e) => toast.error(errMsg(e)),
   });
   const rows: Array<[string, string]> = [
+    ["Retrieval mode", retrievalModeLabel(s.retrieval_mode) ?? "unknown"],
     ["Embedding provider", s.embedding_provider],
     ["Embedding model", s.embedding_model],
     ["Vector dimension", String(s.embedding_dim)],
     ["Chunk size", `${s.chunk_size_tokens} tokens`],
     ["Chunk overlap", `${s.chunk_overlap_tokens} tokens`],
+    ...(s.embedding_signature ? ([["Index signature", s.embedding_signature]] as Array<[string, string]>) : []),
   ];
   return (
     <Card>
@@ -338,6 +404,7 @@ function EmbeddingsTab({ s }: { s: SettingsOut }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {s.retrieval_mode && <RetrievalModeNote mode={s.retrieval_mode} />}
         <dl className="grid max-w-lg grid-cols-2 gap-y-2 text-sm" data-testid="embedding-info">
           {rows.map(([k, v]) => (
             <div key={k} className="contents">
@@ -353,9 +420,34 @@ function EmbeddingsTab({ s }: { s: SettingsOut }) {
           </Button>
         </div>
       </CardContent>
-      <ConfirmDialog open={confirm} onOpenChange={setConfirm} title="Reindex all documents?" description="Every document is re-extracted, re-chunked and re-embedded in the background. Search keeps using the old index until each document finishes." confirmLabel="Reindex" destructive={false} pending={m.isPending} onConfirm={() => m.mutate()} />
+      <ConfirmDialog open={confirm} onOpenChange={setConfirm} title="Reindex all documents?" description="Every document is re-extracted, re-chunked and re-embedded in the background. While a document is being rebuilt it may be missing from search results." confirmLabel="Reindex" destructive={false} pending={m.isPending} onConfirm={() => m.mutate()} />
     </Card>
   );
+}
+
+const CHECK_LABEL: Record<string, string> = { llm: "LLM", pgvector: "pgvector", database: "Database", jobs: "Jobs", storage: "Storage", embeddings: "Embeddings" };
+
+function formatCheck(name: string, c: Record<string, unknown>): string {
+  const parts: string[] = [];
+  const add = (label: string, v: unknown) => v !== undefined && v !== null && v !== "" && parts.push(`${label}: ${String(v)}`);
+  if (name === "llm") {
+    add("provider", c.provider);
+    add("status", c.status);
+    add("detail", c.hint);
+  } else if (name === "embeddings") {
+    add("provider", c.provider);
+    add("mode", retrievalModeLabel(c.retrieval_mode as string));
+    add("dim", c.dim);
+    add("signature", c.signature);
+    add("stale documents", c.stale_documents);
+  } else if (name === "storage") {
+    add("backend", c.backend);
+    if (typeof c.used_bytes === "number") add("used", `${formatBytes(c.used_bytes)}${typeof c.quota_bytes === "number" ? ` of ${formatBytes(c.quota_bytes)}` : ""}`);
+    add("error", c.error);
+  } else {
+    for (const [k, v] of Object.entries(c)) if (k !== "ok") add(k, v);
+  }
+  return parts.join(" · ");
 }
 
 function HealthTab() {
@@ -366,6 +458,11 @@ function HealthTab() {
       return (await res.json()) as Readiness; // 503 (degraded) still carries the full report
     },
   });
+  const llm = data?.checks.llm as { provider?: string; status?: string; hint?: string; configured?: boolean } | undefined;
+  const llmBad = !!llm && (llm.status ? llm.status !== "ok" : llm.configured === false);
+  const emb = data?.checks.embeddings as { stale_documents?: number } | undefined;
+  const stale = Number(emb?.stale_documents ?? 0);
+  const storage = data?.checks.storage as { ok?: boolean; error?: string; backend?: string } | undefined;
   return (
     <Card>
       <CardHeader>
@@ -384,22 +481,32 @@ function HealthTab() {
           <Skeleton className="h-32 rounded-lg" />
         ) : (
           <div className="space-y-3" data-testid="health-checks">
+            {llmBad && (
+              <Callout tone="error" title="No LLM model configured — set LLM_MODEL on the API" testId="health-llm-callout">
+                {llm?.hint || "Chat cannot answer until the server has a model (and, for Groq, GROQ_API_KEY). You can also pick one under Settings → AI provider."}
+              </Callout>
+            )}
+            {stale > 0 && (
+              <Callout tone="warning" title={`${stale} document${stale > 1 ? "s are" : " is"} being re-indexed`} testId="health-stale-callout">
+                They are rebuilt for the current embedding model; search quality is reduced until they finish.
+              </Callout>
+            )}
+            {storage && storage.ok === false && (
+              <Callout tone="error" title="File storage is not working" testId="health-storage-callout">
+                Backend “{storage.backend}” reported {storage.error ?? "an error"}. Uploads will fail until this is fixed.
+              </Callout>
+            )}
             <p className="text-sm">
               Overall: <Badge variant={data.status === "ready" ? "secondary" : "destructive"}>{data.status}</Badge> <span className="text-muted-foreground">API v{data.version}</span>
             </p>
             <ul className="divide-y rounded-lg border">
               {Object.entries(data.checks).map(([name, c]) => {
-                const ok = c.ok === undefined ? true : Boolean(c.ok);
+                const ok = name === "llm" ? !llmBad : c.ok === undefined ? true : Boolean(c.ok);
                 return (
-                  <li key={name} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                  <li key={name} className="flex flex-wrap items-center gap-3 p-3 text-sm" data-testid={`health-${name}`} data-ok={ok}>
                     {ok ? <CheckCircle2 className="size-4 text-emerald-600" aria-hidden /> : <XCircle className="size-4 text-destructive" aria-hidden />}
-                    <span className="w-28 font-medium capitalize">{name}</span>
-                    <span className="text-muted-foreground">
-                      {Object.entries(c)
-                        .filter(([k]) => k !== "ok")
-                        .map(([k, v]) => `${k}: ${String(v)}`)
-                        .join(" · ")}
-                    </span>
+                    <span className="w-28 font-medium">{CHECK_LABEL[name] ?? name}</span>
+                    <span className="min-w-0 flex-1 break-words text-muted-foreground">{formatCheck(name, c)}</span>
                   </li>
                 );
               })}

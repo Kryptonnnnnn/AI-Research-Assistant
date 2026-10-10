@@ -35,3 +35,26 @@ export function timeAgo(iso: string): string {
 export function pct(n: number): string {
   return `${(n * 100).toFixed(0)}%`;
 }
+
+export const STAGE_LABEL: Record<string, string> = {
+  queued: "Queued",
+  reading: "Reading file",
+  extracting: "Extracting text",
+  chunking: "Splitting into chunks",
+  embedding: "Creating embeddings",
+  indexing: "Indexing",
+  retrying: "Retrying",
+  recovered: "Resuming",
+  done: "Ready",
+  failed: "Failed",
+};
+
+export function stageLabel(stage: string): string {
+  return STAGE_LABEL[stage] ?? stage;
+}
+
+export function retrievalModeLabel(mode: string | undefined): string | null {
+  if (mode === "semantic") return "Semantic vector search";
+  if (mode === "lexical") return "Lexical (keyword-like) matching";
+  return null;
+}

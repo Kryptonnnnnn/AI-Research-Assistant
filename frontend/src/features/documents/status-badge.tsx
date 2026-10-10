@@ -2,20 +2,8 @@ import { CheckCircle2, CircleAlert, Clock, Loader2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { stageLabel } from "@/lib/format";
 import type { DocumentOut } from "@/types/api";
-
-const STAGE_LABEL: Record<string, string> = {
-  queued: "Queued",
-  reading: "Reading file",
-  extracting: "Extracting text",
-  chunking: "Splitting into chunks",
-  embedding: "Creating embeddings",
-  indexing: "Indexing",
-  retrying: "Retrying",
-  recovered: "Resuming",
-  done: "Ready",
-  failed: "Failed",
-};
 
 export function StatusBadge({ doc }: { doc: Pick<DocumentOut, "status" | "progress" | "stage"> }) {
   if (doc.status === "ready")
@@ -39,7 +27,7 @@ export function StatusBadge({ doc }: { doc: Pick<DocumentOut, "status" | "progre
       </Badge>
       <Progress value={doc.progress} aria-label="Processing progress" className="h-1.5" />
       <span className="text-xs text-muted-foreground">
-        {STAGE_LABEL[doc.stage] ?? doc.stage} · {doc.progress}%
+        {stageLabel(doc.stage)} · {doc.progress}%
       </span>
     </div>
   );

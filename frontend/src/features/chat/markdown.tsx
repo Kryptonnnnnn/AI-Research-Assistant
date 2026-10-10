@@ -41,7 +41,7 @@ function CodeBlock({ children }: { children?: React.ReactNode }) {
   );
 }
 
-export function CitationChip({ source }: { source: SourceOut }) {
+export function CitationChip({ source, group }: { source: SourceOut; group?: SourceOut[] }) {
   const { open } = useEvidence();
   return (
     <Tooltip>
@@ -51,7 +51,7 @@ export function CitationChip({ source }: { source: SourceOut }) {
             type="button"
             data-testid="citation-chip"
             data-label={source.label}
-            onClick={() => open(source)}
+            onClick={() => open(source, group)}
             aria-label={`Open source ${source.label}: ${source.document_title}${source.page_number ? `, page ${source.page_number}` : ""}`}
             className="mx-0.5 inline-flex h-5 min-w-5 -translate-y-px items-center justify-center rounded-md bg-primary/10 px-1.5 align-baseline text-[0.7rem] font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           />
@@ -74,6 +74,8 @@ export function CitationChip({ source }: { source: SourceOut }) {
 /** Safe Markdown: no raw HTML, http/https/mailto links only, [S#] tokens become citation chips. */
 export function Markdown({ content, citations = [] }: { content: string; citations?: SourceOut[] }) {
   const byLabel = useMemo(() => new Map(citations.map((c) => [c.label, c])), [citations]);
+  // prev/next in the viewer steps through the cited sources (or all retrieved ones while streaming)
+  const group = useMemo(() => (citations.some((c) => c.cited) ? citations.filter((c) => c.cited) : citations), [citations]);
   const plugins = useMemo(() => [remarkGfm, remarkEvidenceKinds, remarkCitations(new Set(byLabel.keys()))], [byLabel]);
   const components = useMemo(
     () =>
@@ -94,12 +96,12 @@ export function Markdown({ content, citations = [] }: { content: string; citatio
               .map((l) => byLabel.get(l))
               .filter((s): s is SourceOut => !!s)
               .map((s) => (
-                <CitationChip key={s.label} source={s} />
+                <CitationChip key={s.label} source={s} group={group} />
               ))}
           </>
         ),
       }) as unknown as Components,
-    [byLabel],
+    [byLabel, group],
   );
   return (
     <div className="prose-ara break-words">
