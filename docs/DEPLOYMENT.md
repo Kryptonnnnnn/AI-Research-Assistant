@@ -48,6 +48,17 @@ different signature are re-queued and atomically re-indexed, and retrieval never
 
 Qdrant was not implemented; pgvector is the vector store. (Qdrant Cloud has a free tier if you ever add an adapter behind `app/vectorstore`.)
 
+### Background processing on Render free (how it works and its limits)
+Render's free plan has **no background-worker service type**, so the job worker runs **inside the API process** (`JOB_RUNNER=embedded`). Jobs are rows in
+PostgreSQL (`processing_jobs`), not in memory:
+- If the instance sleeps (15 min idle) or restarts, queued jobs simply wait; when the process starts it recovers any job left `running` for more than
+  `JOB_STALE_SECONDS` (default 600) and re-queues stale-index documents (`AUTO_REINDEX`). Verified by unit tests (`test_stale_running_job_is_recovered`, retries, partial failure).
+- Processing only progresses while the instance is awake; an upload that arrives while it is asleep wakes it (≈1 min) and is then processed.
+- Embedding runs in a worker thread so it does not block requests, but with **0.1 CPU** large documents are slow (a 40-page PDF took ~40 s in a
+  0.1-CPU container test). Retries use exponential backoff (`JOB_RETRY_BACKOFF_SECONDS`, `JOB_MAX_ATTEMPTS`).
+- With more than one instance you would set `JOB_RUNNER=external` on the API and run `python -m app.jobs.worker` as a separate (paid) worker; jobs are claimed with
+  `FOR UPDATE SKIP LOCKED`, so multiple workers are safe on PostgreSQL.
+
 ## 4. Frontend on Vercel
 1. **Add New → Project**, import the repo, set **Root Directory** to `frontend`.
 2. Environment variable: `BACKEND_URL=https://<your-render-service>.onrender.com`.
