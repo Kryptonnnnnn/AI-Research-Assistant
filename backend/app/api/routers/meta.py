@@ -92,7 +92,7 @@ async def ready(db: DB):
         from app.storage.factory import get_storage
 
         await get_storage().check()
-        checks["storage"] = {"ok": True, "backend": s.storage_backend}
+        checks["storage"] = {"ok": True, "backend": get_storage().name}
     except Exception as exc:  # noqa: BLE001 - class name only: useful for diagnosis, never secrets
         checks["storage"] = {"ok": False, "backend": s.storage_backend, "error": type(exc).__name__}
     checks["embeddings"] = {"ok": True, "provider": s.embedding_provider, "dim": s.embedding_dim}

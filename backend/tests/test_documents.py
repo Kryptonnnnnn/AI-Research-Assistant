@@ -184,3 +184,40 @@ async def test_storage_failure_is_a_clear_503_and_ready_reports_it(alice, monkey
         "backend": "local",
         "error": "ConnectionError",
     }
+
+
+async def test_database_storage_roundtrip_and_end_to_end(alice, monkeypatch):
+    """STORAGE_BACKEND=db keeps files in the DB; the whole upload->process->download->delete flow works."""
+    from app.core.config import reset_settings_cache
+    from app.storage.factory import get_storage, set_storage
+
+    monkeypatch.setenv("STORAGE_BACKEND", "db")
+    reset_settings_cache()
+    set_storage(None)
+    assert get_storage().name == "db"
+    doc = await upload_and_process(alice, "dbfile.txt", PHOTO.encode())
+    assert doc["status"] == "ready"
+    assert (await alice.get(f"/api/v1/documents/{doc['id']}/file?download=true")).content == PHOTO.encode()
+    await get_storage().check()
+    assert (await alice.delete(f"/api/v1/documents/{doc['id']}")).status_code == 204
+    from sqlalchemy import func, select
+
+    from app.models import StoredFile
+
+    async with get_sessionmaker()() as db:
+        assert (await db.execute(select(func.count()).select_from(StoredFile))).scalar_one() == 0
+    reset_settings_cache()
+    set_storage(None)
+
+
+async def test_s3_without_bucket_falls_back_to_database_storage(monkeypatch):
+    from app.core.config import reset_settings_cache
+    from app.storage.factory import get_storage, set_storage
+
+    monkeypatch.setenv("STORAGE_BACKEND", "s3")
+    monkeypatch.setenv("S3_BUCKET", "")
+    reset_settings_cache()
+    set_storage(None)
+    assert get_storage().name == "db"
+    reset_settings_cache()
+    set_storage(None)

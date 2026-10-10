@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     rate_limit_chat_per_minute: int = 30
 
     # --- Storage ---
-    storage_backend: Literal["local", "s3"] = "local"
+    storage_backend: Literal["local", "s3", "db"] = "local"
     storage_local_dir: str = "./data/uploads"
     s3_bucket: str = ""
     s3_endpoint_url: str = ""

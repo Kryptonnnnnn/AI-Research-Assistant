@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -68,6 +69,18 @@ class DocumentChunk(UUIDPk, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     document: Mapped[Document] = relationship(back_populates="chunks")
+
+
+class StoredFile(Base):
+    """File bytes kept in the database (STORAGE_BACKEND=db): zero extra services, fine for demos / small libraries."""
+
+    __tablename__ = "stored_files"
+
+    key: Mapped[str] = mapped_column(String(500), primary_key=True)
+    content_type: Mapped[str] = mapped_column(String(120), default="")
+    size_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class Collection(UUIDPk, Timestamps, Base):
