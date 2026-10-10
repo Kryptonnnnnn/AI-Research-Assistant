@@ -1,0 +1,70 @@
+# Local infrastructure. `docker compose up -d db` is all you need for development;
+# the `app` profile additionally builds and runs the API, worker and web containers.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ara-db
+    environment:
+      POSTGRES_USER: ara
+      POSTGRES_PASSWORD: ara_dev_password
+      POSTGRES_DB: ara
+    ports:
+      - "5432:5432"
+    volumes:
+      - ara_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ara -d ara"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    profiles: ["app"]
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ara:ara_dev_password@db:5432/ara
+      STORAGE_LOCAL_DIR: /data/uploads
+      JOB_RUNNER: external
+      CORS_ORIGINS: http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ara_uploads:/data/uploads
+      - ara_hf_cache:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+
+  worker:
+    profiles: ["app"]
+    build: ./backend
+    command: python -m app.jobs.worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ara:ara_dev_password@db:5432/ara
+      STORAGE_LOCAL_DIR: /data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ara_uploads:/data/uploads
+      - ara_hf_cache:/root/.cache/huggingface
+
+  web:
+    profiles: ["app"]
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://api:8000
+    environment:
+      BACKEND_URL: http://api:8000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  ara_pgdata:
+  ara_uploads:
+  ara_hf_cache:

@@ -1,0 +1,33 @@
+# Render Blueprint for the API. Verified constraints (render.com/docs/free, checked 2026-10):
+#  - free web services spin down after 15 min idle (~1 min cold start), have an EPHEMERAL disk, and 750 instance-hours/month
+#  - background workers are NOT available on the free plan -> JOB_RUNNER=embedded runs the worker inside the API process
+#  - free Postgres expires after 30 days -> use Neon (pgvector, free) for the database instead
+# RAM for the free plan is not stated in the docs; PyTorch/sentence-transformers is likely too heavy for it, so this blueprint
+# ships the lightweight image with the lexical `hash` embedder. For real semantic search use a paid instance with WITH_ML=1.
+services:
+  - type: web
+    name: ai-research-assistant-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - { key: APP_ENV, value: production }
+      - { key: SECRET_KEY, generateValue: true }
+      - { key: COOKIE_SECURE, value: "true" }
+      - { key: CORS_ORIGINS, sync: false }          # your Vercel URL, e.g. https://your-app.vercel.app
+      - { key: DATABASE_URL, sync: false }          # Neon connection string
+      - { key: JOB_RUNNER, value: embedded }
+      - { key: STORAGE_BACKEND, value: s3 }
+      - { key: S3_BUCKET, sync: false }
+      - { key: S3_ENDPOINT_URL, sync: false }
+      - { key: S3_ACCESS_KEY_ID, sync: false }
+      - { key: S3_SECRET_ACCESS_KEY, sync: false }
+      - { key: EMBEDDING_PROVIDER, value: hash }    # see note above
+      - { key: RETRIEVAL_SCORE_THRESHOLD, value: "0.1" }
+      - { key: LLM_PROVIDER, value: groq }
+      - { key: LLM_MODEL, sync: false }             # a current model id from the Groq console
+      - { key: GROQ_API_KEY, sync: false }
+      - { key: ALLOW_MOCK_PROVIDER, value: "false" }

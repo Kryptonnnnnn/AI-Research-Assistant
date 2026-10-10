@@ -1,0 +1,2 @@
+# Local Sentence Transformers embeddings (default EMBEDDING_PROVIDER). Pulls in PyTorch (large).
+sentence-transformers>=3.0

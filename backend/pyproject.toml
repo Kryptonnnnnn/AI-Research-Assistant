@@ -1,0 +1,19 @@
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+extend-exclude = [".venv", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+ignore = ["B008", "E501", "UP042"]  # B008: FastAPI Depends() in defaults; E501 handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/*" = ["I", "UP", "E"]
+"tests/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+plugins = []
+exclude = ["migrations", "tests", ".venv"]
