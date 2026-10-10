@@ -91,6 +91,9 @@ npm run test:e2e                 # Playwright: starts backend (mock provider) + 
 ```
 (For the PostgreSQL run create the DB once: `docker exec ara-db psql -U ara -d postgres -c "CREATE DATABASE ara_test"`.)
 
+### Enabling CI
+The GitHub Actions workflow lives at `docs/ci-workflow.yml` (pushing workflow files needs a token with the `workflow` scope). To enable it: `gh auth refresh -s workflow`, then `mkdir -p .github/workflows && git mv docs/ci-workflow.yml .github/workflows/ci.yml && git commit -m "Enable CI" && git push`. It has not been run on GitHub yet.
+
 ## Configuration
 All settings are documented in [`.env.example`](.env.example). The important ones: `SECRET_KEY`, `DATABASE_URL`, `CORS_ORIGINS`, `EMBEDDING_PROVIDER`/`EMBEDDING_MODEL`/`EMBEDDING_DIM`, `LLM_PROVIDER`/`LLM_MODEL`/`GROQ_API_KEY`/`OLLAMA_BASE_URL`, `STORAGE_BACKEND` (+`S3_*`), `JOB_RUNNER`, chunking and retrieval parameters. Users can override provider, model and retrieval parameters in **Settings**.
 
