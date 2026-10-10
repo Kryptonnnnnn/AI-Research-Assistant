@@ -2,6 +2,11 @@
 
 A full-stack research workspace: upload PDFs, DOCX, TXT and Markdown, organise them into collections, and ask questions that are answered **only from your documents, with verifiable citations**. Built with Next.js, FastAPI, PostgreSQL + pgvector, local Sentence-Transformers embeddings, and pluggable LLMs (Groq, Ollama, or an offline mock).
 
+## Live demo
+- App: https://ai-research-assistant-beta-flame.vercel.app (Vercel → proxies `/api/*` to the API)
+- API docs: https://ai-research-assistant-api-gwcu.onrender.com/docs · readiness: `/ready`
+- Free tiers: the API sleeps after 15 min idle (first request ≈ 1 min). Embeddings are the lexical `hash` embedder there, and chat needs `LLM_MODEL` (+ `GROQ_API_KEY`) set on the API service.
+
 ## Features
 - **Auth & isolation** — Argon2id, revocable server-side sessions (httpOnly cookie), per-user data isolation enforced in every query and covered by tests, rate limits.
 - **Ingestion pipeline** — validated uploads (extension, MIME, magic bytes, size), SHA-256 duplicate detection, background jobs with progress, retries, stale-job recovery, readable errors for scanned/corrupt/empty files. *No OCR.*

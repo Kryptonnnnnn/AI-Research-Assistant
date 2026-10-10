@@ -23,7 +23,9 @@ The browser only ever talks to the Vercel origin; Next rewrites `/api/*` to the 
 3. Migrations (from `backend/`): `DATABASE_URL=... alembic upgrade head` (the Docker image runs this on every start).
 4. Check: `select extname from pg_extension where extname='vector';`
 
-## 2. Object storage
+## 2. File storage
+Simplest: `STORAGE_BACKEND=db` stores uploads in PostgreSQL (what the live deployment uses; every upload counts against the DB quota, e.g. Neon free ≈ 0.5 GB). If `STORAGE_BACKEND=s3` is set but `S3_BUCKET` is empty, the app logs a warning and falls back to `db`; `/ready` shows which backend is active and, if storage is broken, the error class. For larger libraries use S3-compatible storage:
+
 Create a bucket and an access key in any S3-compatible service and set `STORAGE_BACKEND=s3`, `S3_BUCKET`, `S3_ENDPOINT_URL`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (`S3_REGION=auto` for R2). The Docker image installs `boto3` (`WITH_S3=1`). The S3 adapter is covered by code review only — local storage is what the automated tests exercise, so do a manual upload/download/delete check.
 
 ## 3. API on Render
