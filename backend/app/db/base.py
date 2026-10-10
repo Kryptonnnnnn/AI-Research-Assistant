@@ -43,14 +43,20 @@ _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
-def _normalise_url(url: str) -> str:
-    """Accept provider-style URLs (postgres://, postgresql://) and force the asyncpg driver."""
+def _fix_scheme(url: str) -> str:
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://") :]
     if url.startswith("postgresql://"):
         url = "postgresql+asyncpg://" + url[len("postgresql://") :]
+    return url
+
+
+def _normalise_url(url: str) -> str:
+    """Accept provider-style URLs (postgres://, postgresql://), force the asyncpg driver, and strip libpq-only options."""
+    url = _fix_scheme(url)
     if url.startswith("postgresql+asyncpg://"):
         url = _swap_param(url, "sslmode", "ssl")  # asyncpg spells it `ssl`
+        url = _drop_param(url, "channel_binding")  # libpq-only option (Neon adds it); asyncpg raises TypeError on it
     return url
 
 
@@ -63,9 +69,17 @@ def _swap_param(url: str, old: str, new: str) -> str:
     return urlunsplit(parts._replace(query=urlencode(pairs)))
 
 
+def _drop_param(url: str, name: str) -> str:
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    pairs = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != name]
+    return urlunsplit(parts._replace(query=urlencode(pairs)))
+
+
 def sync_url(url: str) -> str:
     """Sync driver URL (used by Alembic)."""
-    url = _normalise_url(url)
+    url = _fix_scheme(url)  # keep libpq options such as channel_binding: psycopg2 supports them
     url = url.replace("+asyncpg", "+psycopg2").replace("+aiosqlite", "")
     return _swap_param(url, "ssl", "sslmode") if url.startswith("postgresql") else url
 

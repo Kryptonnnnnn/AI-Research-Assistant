@@ -297,6 +297,9 @@ def test_database_url_normalisation_for_hosted_postgres():
     neon = "postgres://u:p@ep-x.neon.tech/db?sslmode=require"
     assert _normalise_url(neon) == "postgresql+asyncpg://u:p@ep-x.neon.tech/db?ssl=require"
     assert sync_url(neon) == "postgresql+psycopg2://u:p@ep-x.neon.tech/db?sslmode=require"
+    neon2 = "postgresql://u:p@ep-x.neon.tech/db?sslmode=require&channel_binding=require"
+    assert _normalise_url(neon2) == "postgresql+asyncpg://u:p@ep-x.neon.tech/db?ssl=require"  # asyncpg can't take channel_binding
+    assert "channel_binding=require" in sync_url(neon2)  # psycopg2/libpq supports it
     assert sync_url("sqlite+aiosqlite:///./x.db") == "sqlite:///./x.db"
 
 
